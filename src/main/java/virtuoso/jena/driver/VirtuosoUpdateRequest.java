@@ -28,74 +28,78 @@ import java.util.Iterator;
 import java.util.List;
 
 import org.apache.jena.atlas.io.IndentedWriter;
-
-import com.hp.hpl.jena.update.UpdateException;
+import org.apache.jena.update.UpdateException;
 
 public class VirtuosoUpdateRequest {
-	private List requests = new ArrayList();
-	private VirtGraph graph;
-	private String virt_query;
 
-	java.sql.Statement stmt = null;
+    private static final org.slf4j.Logger logger =
+            org.slf4j.LoggerFactory.getLogger(VirtuosoUpdateRequest.class);
 
-	public VirtuosoUpdateRequest(VirtGraph _graph) {
-		graph = _graph;
-	}
+    private List<Object> requests = new ArrayList<>();
+    private VirtGraph graph;
+    private String virt_query;
 
-	public VirtuosoUpdateRequest(String query, VirtGraph _graph) {
-		this(_graph);
-		virt_query = query;
-		requests.add((Object) query);
-	}
+    java.sql.Statement stmt = null;
 
-	public void exec() {
-		try {
-			stmt = graph.createStatement();
+    public VirtuosoUpdateRequest(VirtGraph _graph) {
+        graph = _graph;
+    }
 
-			for (Iterator iter = requests.iterator(); iter.hasNext();) {
-				String query = "sparql\n " + (String) iter.next();
-				stmt.execute(query);
-			}
+    public VirtuosoUpdateRequest(String query, VirtGraph _graph) {
+        this(_graph);
+        virt_query = query;
+        requests.add(query);
+    }
 
-			stmt.close();
-			stmt = null;
-		} catch (Exception e) {
-			throw new UpdateException("Convert results are FAILED.:", e);
-		}
+    public void exec() {
+        try {
+            stmt = graph.createStatement();
 
-	}
+            for (Object request : requests) {
+                String query = "sparql\n " + String.valueOf(request);
+                stmt.execute(query);
+            }
 
-	public void addUpdate(String update) {
-		requests.add(update);
-	}
+            stmt.close();
+            stmt = null;
+        } catch (Exception e) {
+            throw new UpdateException("Convert results are FAILED.:", e);
+        }
 
-	public Iterator iterator() {
-		return requests.iterator();
-	}
+    }
 
-	public String toString() {
-		StringBuffer b = new StringBuffer();
+    public void addUpdate(String update) {
+        requests.add(update);
+    }
 
-		for (Iterator iter = requests.iterator(); iter.hasNext();) {
-			b.append((String) iter.next());
-			b.append("\n");
-		}
-		return b.toString();
-	}
+    public Iterator iterator() {
+        return requests.iterator();
+    }
 
-	public void output(IndentedWriter out) {
-		boolean first = true;
-		out.println();
+    @Override
+    public String toString() {
+        StringBuilder b = new StringBuilder();
 
-		for (Iterator iter = requests.iterator(); iter.hasNext();) {
-			if (!first)
-				out.println("    # ----------------");
-			else
-				first = false;
-			System.out.println((String) iter.next());
-			out.ensureStartOfLine();
-		}
+        for (Object request : requests) {
+            b.append((String) request);
+            b.append("\n");
+        }
+        return b.toString();
+    }
 
-	}
+    public void output(IndentedWriter out) {
+        boolean first = true;
+        out.println();
+
+        for (Object request : requests) {
+            if (!first)
+                out.println("    # ----------------");
+            else
+                first = false;
+            System.out.println((String) request);
+            out.ensureStartOfLine();
+        }
+
+    }
 
 }

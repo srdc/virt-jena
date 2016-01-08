@@ -28,48 +28,57 @@ import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.io.Reader;
 
-import com.hp.hpl.jena.update.UpdateException;
-import com.hp.hpl.jena.util.FileUtils;
+import org.apache.jena.update.UpdateException;
+import org.apache.jena.util.FileUtils;
 
 public class VirtuosoUpdateFactory {
 
-	private VirtuosoUpdateFactory() {
-	}
+    private static final org.slf4j.Logger logger =
+            org.slf4j.LoggerFactory.getLogger(VirtuosoUpdateFactory.class);
 
-	/** Create an UpdateRequest by parsing the given string */
-	static public VirtuosoUpdateRequest create(String query, VirtGraph graph) {
-		return new VirtuosoUpdateRequest(query, graph);
-	}
+    private VirtuosoUpdateFactory() {
+    }
 
-	/** Create an UpdateRequest by reading it from a file */
-	public static VirtuosoUpdateRequest read(String fileName, VirtGraph graph) {
-		InputStream in = null;
-		if (fileName.equals("-"))
-			in = System.in;
-		else
-			try {
-				in = new FileInputStream(fileName);
-			} catch (FileNotFoundException ex) {
-				throw new UpdateException("File nout found: " + fileName);
-			}
-		return read(in, graph);
-	}
+    /**
+     * Create an UpdateRequest by parsing the given string *
+     *
+     * @param fileName the {@link String} to the File path.
+     * @param graph    the {@link VirtGraph} the Graph jena.
+     * @return the {@link VirtuosoUpdateRequest}
+     */
+    public static VirtuosoUpdateRequest read(String fileName, VirtGraph graph) {
+        InputStream in;
+        if (fileName.equals("-"))
+            in = System.in;
+        else
+            try {
+                in = new FileInputStream(fileName);
+            } catch (FileNotFoundException ex) {
+                throw new UpdateException("File nout found: " + fileName);
+            }
+        return read(in, graph);
+    }
 
-	/**
-	 * Create an UpdateRequest by reading it from an InputStream (note that
-	 * conversion to UTF-8 will be applied automatically)
-	 */
-	public static VirtuosoUpdateRequest read(InputStream in, VirtGraph graph) {
-		Reader r = FileUtils.asBufferedUTF8(in);
-		StringBuffer b = new StringBuffer();
-		char ch;
-		try {
-			while ((ch = (char) r.read()) != -1)
-				b.append(ch);
-		} catch (Exception e) {
-			throw new UpdateException(e);
-		}
-		return new VirtuosoUpdateRequest(b.toString(), graph);
-	}
+    /**
+     * Create an UpdateRequest by reading it from an InputStream (note that
+     * conversion to UTF-8 will be applied automatically)
+     *
+     * @param in    the {@link InputStream} to Stream of the File.
+     * @param graph the {@link VirtGraph} the Graph jena.
+     * @return the {@link VirtuosoUpdateRequest}
+     */
+    public static VirtuosoUpdateRequest read(InputStream in, VirtGraph graph) {
+        Reader r = FileUtils.asBufferedUTF8(in);
+        StringBuilder b = new StringBuilder();
+        char ch;
+        try {
+            //noinspection ConstantConditions
+            while ((ch = (char) r.read()) != -1)
+                b.append(ch);
+        } catch (Exception e) {
+            throw new UpdateException(e);
+        }
+        return new VirtuosoUpdateRequest(b.toString(), graph);
+    }
 
 }

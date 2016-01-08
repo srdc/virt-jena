@@ -25,204 +25,203 @@ package virtuoso.jena.driver;
 
 import java.util.List;
 
-import com.hp.hpl.jena.query.Dataset;
-import com.hp.hpl.jena.query.Query;
-import com.hp.hpl.jena.query.QueryExecution;
-import com.hp.hpl.jena.query.QueryFactory;
-import com.hp.hpl.jena.query.QuerySolution;
-import com.hp.hpl.jena.rdf.model.Model;
-import com.hp.hpl.jena.sparql.core.DatasetImpl;
-import com.hp.hpl.jena.sparql.engine.http.QueryEngineHTTP;
-import com.hp.hpl.jena.sparql.util.Context;
-import com.hp.hpl.jena.util.FileManager;
+import org.apache.jena.query.*;
+import org.apache.jena.rdf.model.Model;
+import org.apache.jena.sparql.core.DatasetImpl;
+import org.apache.jena.sparql.engine.http.QueryEngineHTTP;
+import org.apache.jena.sparql.util.Context;
 
 public class VirtuosoQueryExecutionFactory {
 
-	private VirtuosoQueryExecutionFactory() {
-	}
+    private static final org.slf4j.Logger logger =
+            org.slf4j.LoggerFactory.getLogger(VirtuosoQueryExecutionFactory.class);
 
-	static public VirtuosoQueryExecution create(Query query, VirtGraph graph) {
-		VirtuosoQueryExecution ret = new VirtuosoQueryExecution(
-				query.toString(), graph);
-		return ret;
-	}
 
-	static public VirtuosoQueryExecution create(String query, VirtGraph graph) {
-		VirtuosoQueryExecution ret = new VirtuosoQueryExecution(query, graph);
-		return ret;
-	}
+    private VirtuosoQueryExecutionFactory() {
+    }
+
+    static public VirtuosoQueryExecution create(Query query, VirtGraph graph) {
+        return new VirtuosoQueryExecution(
+                query.toString(), graph);
+    }
+
+    static public VirtuosoQueryExecution create(String query, VirtGraph graph) {
+        return new VirtuosoQueryExecution(query, graph);
+    }
 
 	/* TODO */
 
-	static public QueryExecution create(Query query, Dataset dataset) {
-		if (dataset instanceof VirtDataSource) {
-			VirtuosoQueryExecution ret = new VirtuosoQueryExecution(
-					query.toString(), (VirtGraph) dataset);
-			return ret;
-		} else {
-			return make(query, dataset);
-		}
-	}
+    static public QueryExecution create(Query query, Dataset dataset) {
+        if (dataset instanceof VirtDataSource) {
+            return new VirtuosoQueryExecution(
+                    query.toString(), (VirtGraph) dataset);
+        } else {
+            return make(query, dataset);
+        }
+    }
 
-	static public QueryExecution create(String queryStr, Dataset dataset) {
-		if (dataset instanceof VirtDataSource) {
-			VirtuosoQueryExecution ret = new VirtuosoQueryExecution(queryStr,
-					(VirtGraph) dataset);
-			return ret;
-		} else {
-			return make(makeQuery(queryStr), dataset);
-		}
-	}
+    static public QueryExecution create(String queryStr, Dataset dataset) {
+        if (dataset instanceof VirtDataSource) {
+            return new VirtuosoQueryExecution(queryStr,
+                    (VirtGraph) dataset);
+        } else {
+            return make(makeQuery(queryStr), dataset);
+        }
+    }
 
-	static public QueryExecution create(Query query, FileManager fm) {
-		checkArg(query);
+	/*static public QueryExecution create(Query query, FileManager fm) {
+        checkArg(query);
 		QueryExecution qe = make(query);
-		if (fm != null)
-			qe.setFileManager(fm);
-		return qe;
-	}
+		if (fm != null){
+            qe.setFileManager(fm);
+		}
 
-	static public QueryExecution create(String queryStr, FileManager fm) {
+		return qe;
+	}*/
+
+	/*static public QueryExecution create(String queryStr, FileManager fm) {
 		checkArg(queryStr);
 		return create(makeQuery(queryStr), fm);
-	}
+	}*/
 
-	// ---------------- Query + Model
+    // ---------------- Query + Model
 
-	static public QueryExecution create(Query query, Model model) {
-		checkArg(query);
-		checkArg(model);
+    static public QueryExecution create(Query query, Model model) {
+        checkArg(query);
+        checkArg(model);
 
-		if (model.getGraph() instanceof VirtGraph) {
-			VirtuosoQueryExecution ret = new VirtuosoQueryExecution(
-					query.toString(), (VirtGraph) model.getGraph());
-			return ret;
-		} else {
-			return make(query, new DatasetImpl(model));
-		}
-	}
+        if (model.getGraph() instanceof VirtGraph) {
+            return new VirtuosoQueryExecution(
+                    query.toString(), (VirtGraph) model.getGraph());
+        } else {
+            return make(query, new DatasetImpl(model));
+        }
+    }
 
-	static public QueryExecution create(String queryStr, Model model) {
-		checkArg(queryStr);
-		checkArg(model);
-		if (model.getGraph() instanceof VirtGraph) {
-			VirtuosoQueryExecution ret = new VirtuosoQueryExecution(queryStr,
-					(VirtGraph) model.getGraph());
-			return ret;
-		} else {
-			return create(makeQuery(queryStr), model);
-		}
-	}
+    static public QueryExecution create(String queryStr, Model model) {
+        checkArg(queryStr);
+        checkArg(model);
+        if (model.getGraph() instanceof VirtGraph) {
+            return new VirtuosoQueryExecution(queryStr,
+                    (VirtGraph) model.getGraph());
+        } else {
+            return create(makeQuery(queryStr), model);
+        }
+    }
 
-	static public QueryExecution create(Query query,
-			QuerySolution initialBinding) {
-		checkArg(query);
-		QueryExecution qe = make(query);
-		if (initialBinding != null)
-			qe.setInitialBinding(initialBinding);
-		return qe;
-	}
+    static public QueryExecution create(Query query,
+                                        QuerySolution initialBinding) {
+        checkArg(query);
+        QueryExecution qe = make(query);
+        if (initialBinding != null)
+            qe.setInitialBinding(initialBinding);
+        return qe;
+    }
 
-	static public QueryExecution create(String queryStr,
-			QuerySolution initialBinding) {
-		checkArg(queryStr);
-		return create(makeQuery(queryStr), initialBinding);
-	}
+    static public QueryExecution create(String queryStr,
+                                        QuerySolution initialBinding) {
+        checkArg(queryStr);
+        return create(makeQuery(queryStr), initialBinding);
+    }
 
-	// ??
-	static public QueryExecution create(Query query, Dataset dataset,
-			QuerySolution initialBinding) {
-		checkArg(query);
-		QueryExecution qe = make(query, dataset);
-		if (initialBinding != null)
-			qe.setInitialBinding(initialBinding);
-		return qe;
-	}
+    // ??
+    static public QueryExecution create(Query query, Dataset dataset,
+                                        QuerySolution initialBinding) {
+        checkArg(query);
+        QueryExecution qe = make(query, dataset);
+        if (initialBinding != null)
+            qe.setInitialBinding(initialBinding);
+        return qe;
+    }
 
-	// ??
-	static public QueryExecution create(String queryStr, Dataset dataset,
-			QuerySolution initialBinding) {
-		checkArg(queryStr);
-		return create(makeQuery(queryStr), dataset, initialBinding);
-	}
+    // ??
+    static public QueryExecution create(String queryStr, Dataset dataset,
+                                        QuerySolution initialBinding) {
+        checkArg(queryStr);
+        return create(makeQuery(queryStr), dataset, initialBinding);
+    }
 
-	// ---------------- Remote query execution
+    // ---------------- Remote query execution
 
-	static public QueryExecution sparqlService(String service, Query query) {
-		checkNotNull(service, "URL for service is null");
-		checkArg(query);
-		return makeServiceRequest(service, query);
-	}
+    static public QueryExecution sparqlService(String service, Query query) {
+        checkNotNull(service, "URL for service is null");
+        checkArg(query);
+        return makeServiceRequest(service, query);
+    }
 
-	static public QueryExecution sparqlService(String service, Query query,
-			String defaultGraph) {
-		checkNotNull(service, "URL for service is null");
-		// checkNotNull(defaultGraph, "IRI for default graph is null") ;
-		checkArg(query);
-		QueryEngineHTTP qe = makeServiceRequest(service, query);
-		qe.addDefaultGraph(defaultGraph);
-		return qe;
-	}
+    static public QueryExecution sparqlService(String service, Query query,
+                                               String defaultGraph) {
+        checkNotNull(service, "URL for service is null");
+        // checkNotNull(defaultGraph, "IRI for default graph is null") ;
+        checkArg(query);
+        QueryEngineHTTP qe = makeServiceRequest(service, query);
+        qe.addDefaultGraph(defaultGraph);
+        return qe;
+    }
 
-	static public QueryExecution sparqlService(String service, Query query,
-			List defaultGraphURIs, List namedGraphURIs) {
-		checkNotNull(service, "URL for service is null");
-		// checkNotNull(defaultGraphURIs, "List of default graph URIs is null")
-		// ;
-		// checkNotNull(namedGraphURIs, "List of named graph URIs is null") ;
-		checkArg(query);
+    static public QueryExecution sparqlService(String service, Query query,
+                                               List<String> defaultGraphURIs, List<String> namedGraphURIs) {
+        checkNotNull(service, "URL for service is null");
+        // checkNotNull(defaultGraphURIs, "List of default graph URIs is null")
+        // ;
+        // checkNotNull(namedGraphURIs, "List of named graph URIs is null") ;
+        checkArg(query);
 
-		QueryEngineHTTP qe = makeServiceRequest(service, query);
+        QueryEngineHTTP qe = makeServiceRequest(service, query);
 
-		if (defaultGraphURIs != null)
-			qe.setDefaultGraphURIs(defaultGraphURIs);
-		if (namedGraphURIs != null)
-			qe.setNamedGraphURIs(namedGraphURIs);
-		return qe;
-	}
+        if (defaultGraphURIs != null)
+            qe.setDefaultGraphURIs(defaultGraphURIs);
+        if (namedGraphURIs != null)
+            qe.setNamedGraphURIs(namedGraphURIs);
+        return qe;
+    }
 
-	// ---------------- Internal routines
+    // ---------------- Internal routines
 
-	// Make query
+    // Make query
 
-	static private Query makeQuery(String queryStr) {
-		return QueryFactory.create(queryStr);
-	}
+    static private Query makeQuery(String queryStr) {
+        return QueryFactory.create(queryStr);
+    }
 
-	// ---- Make executions
+    // ---- Make executions
 
-	static private QueryExecution make(Query query) {
-		return make(query, null);
-	}
+    static private QueryExecution make(Query query) {
+        return make(query, null);
+    }
 
-	static private QueryExecution make(Query query, Dataset dataset) {
-		return make(query, dataset, null);
-	}
+    static private QueryExecution make(Query query, Dataset dataset) {
+        return make(query, dataset, null);
+    }
 
-	static private QueryExecution make(Query query, Dataset dataset,
-			Context context) {
-		return null;
-	}
+    static private QueryExecution make(Query query, Dataset dataset,
+                                       Context context) {
+        if (dataset != null) {
+            return QueryExecutionFactory.create(query, dataset);
+        } else {
+            return QueryExecutionFactory.create(query);
+        }
+    }
 
-	static private QueryEngineHTTP makeServiceRequest(String service,
-			Query query) {
-		return new QueryEngineHTTP(service, query);
-	}
+    static private QueryEngineHTTP makeServiceRequest(String service,
+                                                      Query query) {
+        return new QueryEngineHTTP(service, query);
+    }
 
-	static private void checkNotNull(Object obj, String msg) {
-		if (obj == null)
-			throw new IllegalArgumentException(msg);
-	}
+    static private void checkNotNull(Object obj, String msg) {
+        if (obj == null)
+            throw new IllegalArgumentException(msg);
+    }
 
-	static private void checkArg(Model model) {
-		checkNotNull(model, "Model is a null pointer");
-	}
+    static private void checkArg(Model model) {
+        checkNotNull(model, "Model is a null pointer");
+    }
 
-	static private void checkArg(String queryStr) {
-		checkNotNull(queryStr, "Query string is null");
-	}
+    static private void checkArg(String queryStr) {
+        checkNotNull(queryStr, "Query string is null");
+    }
 
-	static private void checkArg(Query query) {
-		checkNotNull(query, "Query is null");
-	}
+    static private void checkArg(Query query) {
+        checkNotNull(query, "Query is null");
+    }
 }
