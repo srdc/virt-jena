@@ -174,48 +174,9 @@ public class VirtGraph extends GraphBase {
 
     }
 
-    private static String escapeString(String s) {
-        StringBuilder buf = new StringBuilder(s.length());
-        int i = 0;
-        char ch;
-        while (i < s.length()) {
-            ch = s.charAt(i++);
-            if (ch == '\'')
-                buf.append('\\');
-            buf.append(ch);
-        }
-        return buf.toString();
-    }
 
-    // GraphBase overrides
-    public static String Node2Str(Node n) {
-        if (n.isURI()) {
-            return "<" + n + ">";
-        } else if (n.isBlank()) {
-            return "<_:" + n + ">";
-        } else if (n.isLiteral()) {
-            String s;
-            StringBuilder sb = new StringBuilder();
-            sb.append("'");
-            sb.append(escapeString(n.getLiteralValue().toString()));
-            sb.append("'");
 
-            s = n.getLiteralLanguage();
-            if (s != null && s.length() > 0) {
-                sb.append("@");
-                sb.append(s);
-            }
-            s = n.getLiteralDatatypeURI();
-            if (s != null && s.length() > 0) {
-                sb.append("^^<");
-                sb.append(s);
-                sb.append(">");
-            }
-            return sb.toString();
-        } else {
-            return "<" + n + ">";
-        }
-    }
+
 
     // getters
     public VirtuosoDataSource getDataSource() {
@@ -491,13 +452,13 @@ public class VirtGraph extends GraphBase {
         O = " ?o ";
 
         if (!Node.ANY.equals(t.getSubject()))
-            S = Node2Str(t.getSubject());
+            S = VirtUtilities.toString(t.getSubject());
 
         if (!Node.ANY.equals(t.getPredicate()))
-            P = Node2Str(t.getPredicate());
+            P = VirtUtilities.toString(t.getPredicate());
 
         if (!Node.ANY.equals(t.getObject()))
-            O = Node2Str(t.getObject());
+            O = VirtUtilities.toString(t.getObject());
 
         if (ruleSet != null)
             sb.append(" define input:inference '").append(ruleSet).append("'\n ");
@@ -544,13 +505,13 @@ public class VirtGraph extends GraphBase {
         O = " ?o ";
 
         if (tm.getMatchSubject() != null)
-            S = Node2Str(tm.getMatchSubject());
+            S = VirtUtilities.toString(tm.getMatchSubject());
 
         if (tm.getMatchPredicate() != null)
-            P = Node2Str(tm.getMatchPredicate());
+            P = VirtUtilities.toString(tm.getMatchPredicate());
 
         if (tm.getMatchObject() != null)
-            O = Node2Str(tm.getMatchObject());
+            O = VirtUtilities.toString(tm.getMatchObject());
 
         if (ruleSet != null)
             sb.append(" define input:inference '").append(ruleSet).append("'\n ");
@@ -699,13 +660,13 @@ public class VirtGraph extends GraphBase {
             } else {
 
                 if (nS != null)
-                    S = Node2Str(nS);
+                    S = VirtUtilities.toString(nS);
 
                 if (nP != null)
-                    P = Node2Str(nP);
+                    P = VirtUtilities.toString(nP);
 
                 if (nO != null)
-                    O = Node2Str(nO);
+                    O = VirtUtilities.toString(nO);
 
                 String query = "sparql delete from graph <" + this.graphName
                         + "> { " + S + " " + P + " " + O + " } from <"

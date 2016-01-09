@@ -222,7 +222,7 @@ public class VirtuosoQueryExecution implements QueryExecution {
                     String varName = query.substring(i, j);
                     RDFNode val = m_arg.get(varName);
                     if (val != null) {
-                        varData = VirtGraph.Node2Str(val.asNode());
+                        varData = VirtUtilities.toString(val.asNode());
                         i = j;
                     }
                 }

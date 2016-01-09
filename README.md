@@ -19,9 +19,9 @@ The Virtuoso Jena RDF Data Provider is a fully operational Native Graph Model St
 
 	http://virtuoso.openlinksw.com/dataspace/doc/dav/wiki/Main/VirtJenaProvider
 	
-However, current release (2.6.2) of the Virtuoso Jena Provider is designed to work with Virtuoso JDBC 3 Driver and Jena versions above 2.5.5
+However, current release (3.0.1) of the Virtuoso Jena Provider is designed to work with Virtuoso JDBC 3 Driver and Jena versions above 2.5.5
 Current release supports neither Virtuoso JDBC 4 Driver nor Jena version 2.6.4 above, where Jena Framework became a top level Apache Project.
-This project includes modifications on Virtuoso Jena Provider 2.6.2 so that, it can work with Virtuoso JDBC 4 Driver and current latest Jena release 2.10.0
+This project includes modifications on Virtuoso Jena Provider 2.6.2 so that, it can work with Virtuoso JDBC 4 Driver and current latest Jena release 3.0.1
 
 ## Installation
 ===========

@@ -303,5 +303,49 @@ public class VirtUtilities {
         return createNodeBase(resource, null, rdfDatatype, null);
     }
 
+    private static String escapeString(String s) {
+        StringBuilder buf = new StringBuilder(s.length());
+        int i = 0;
+        char ch;
+        while (i < s.length()) {
+            ch = s.charAt(i++);
+            if (ch == '\'')
+                buf.append('\\');
+            buf.append(ch);
+        }
+        return buf.toString();
+    }
+
+    // GraphBase overrides
+    public static String toString(Node n) {
+        if (n.isURI()) {
+            return "<" + n + ">";
+        } else if (n.isBlank()) {
+            return "<_:" + n + ">";
+        } else if (n.isLiteral()) {
+            String s;
+            StringBuilder sb = new StringBuilder();
+            sb.append("'");
+            sb.append(escapeString(n.getLiteralValue().toString()));
+            sb.append("'");
+
+            s = n.getLiteralLanguage();
+            if (s != null && s.length() > 0) {
+                sb.append("@");
+                sb.append(s);
+            }
+            s = n.getLiteralDatatypeURI();
+            if (s != null && s.length() > 0) {
+                sb.append("^^<");
+                sb.append(s);
+                sb.append(">");
+            }
+            return sb.toString();
+        } else {
+            return "<" + n + ">";
+        }
+    }
+
+
 
 }

@@ -138,7 +138,7 @@ public class VirtuosoQueryEngine extends QueryEngineMain {
                     String varName = query.substring(i, j);
                     Node val = args.get(Var.alloc(varName));
                     if (val != null) {
-                        varData = VirtGraph.Node2Str(val);
+                        varData = VirtUtilities.toString(val);
                         i = j;
                     }
                 }
