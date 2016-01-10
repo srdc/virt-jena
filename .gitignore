@@ -10,3 +10,5 @@ databases
 stores
 *~
 catalog-*
+.idea/*
+.idea

@@ -13,31 +13,38 @@
 	</properties>
 
 	<dependencies>
+		<!-- load driver jdbc virtuoso from local repository -->
         <dependency>
             <groupId>virtuoso</groupId>
             <artifactId>virtjdbc</artifactId>
             <type>jar</type>
             <version>4.1</version>
+			<optional>true</optional>
         </dependency>
+        <!-- load driver jdbc virtuoso from remote repository -->
         <dependency>
 			<groupId>com.openlink.virtuoso</groupId>
 			<artifactId>virtjdbc4-1</artifactId>
 			<version>7.1.0</version>
+			<optional>true</optional>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.jena</groupId>
 			<artifactId>jena-core</artifactId>
 			<version>3.0.1</version>
+			<optional>true</optional>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.jena</groupId>
 			<artifactId>jena-arq</artifactId>
 			<version>3.0.1</version>
+			<optional>true</optional>
 		</dependency>
 		<dependency>
 			<groupId>org.slf4j</groupId>
 			<artifactId>slf4j-api</artifactId>
 			<version>1.7.13</version>
+			<optional>true</optional>
 		</dependency>
 	</dependencies>
 
@@ -78,6 +85,7 @@
 			<name>In Project Repo for VirtJDBC</name>
 			<url>file://${project.basedir}/lib</url>
 		</repository>
+        <!-- Local Host Repository -->
         <!--<repository>
             <releases>
                 <updatePolicy>always</updatePolicy>
@@ -88,7 +96,7 @@
             <id>virtuoso-jdbc4-embedded</id>
             <url>file://localhost/${project.basedir}/lib</url>
         </repository>-->
-		<!-- Jena-Virtuoso Driver Repository -->
+		<!-- Jena-Virtuoso Driver Remote Repository -->
 		<repository>
 			<id>maven.aksw.internal</id>
 			<name>University Leipzig, AKSW Maven2 Repository</name>

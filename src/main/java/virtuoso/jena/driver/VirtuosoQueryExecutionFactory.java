@@ -30,6 +30,7 @@ import org.apache.jena.rdf.model.Model;
 import org.apache.jena.sparql.core.DatasetImpl;
 import org.apache.jena.sparql.engine.http.QueryEngineHTTP;
 import org.apache.jena.sparql.util.Context;
+import org.apache.jena.util.FileManager;
 
 public class VirtuosoQueryExecutionFactory {
 
@@ -65,7 +66,7 @@ public class VirtuosoQueryExecutionFactory {
             return new VirtuosoQueryExecution(queryStr,
                     (VirtGraph) dataset);
         } else {
-            return make(makeQuery(queryStr), dataset);
+            return make(VirtUtilities.toQuery(queryStr), dataset);
         }
     }
 
@@ -75,13 +76,12 @@ public class VirtuosoQueryExecutionFactory {
 		if (fm != null){
             qe.setFileManager(fm);
 		}
-
 		return qe;
 	}*/
 
 	/*static public QueryExecution create(String queryStr, FileManager fm) {
 		checkArg(queryStr);
-		return create(makeQuery(queryStr), fm);
+		return create(VirtUtilities.toQuery(queryStr), fm);
 	}*/
 
     // ---------------- Query + Model
@@ -105,7 +105,7 @@ public class VirtuosoQueryExecutionFactory {
             return new VirtuosoQueryExecution(queryStr,
                     (VirtGraph) model.getGraph());
         } else {
-            return create(makeQuery(queryStr), model);
+            return create(VirtUtilities.toQuery(queryStr), model);
         }
     }
 
@@ -121,7 +121,7 @@ public class VirtuosoQueryExecutionFactory {
     static public QueryExecution create(String queryStr,
                                         QuerySolution initialBinding) {
         checkArg(queryStr);
-        return create(makeQuery(queryStr), initialBinding);
+        return create(VirtUtilities.toQuery(queryStr), initialBinding);
     }
 
     // ??
@@ -138,12 +138,18 @@ public class VirtuosoQueryExecutionFactory {
     static public QueryExecution create(String queryStr, Dataset dataset,
                                         QuerySolution initialBinding) {
         checkArg(queryStr);
-        return create(makeQuery(queryStr), dataset, initialBinding);
+        return create(VirtUtilities.toQuery(queryStr), dataset, initialBinding);
     }
 
     // ---------------- Remote query execution
 
     static public QueryExecution sparqlService(String service, Query query) {
+        checkNotNull(service, "URL for service is null");
+        checkArg(query);
+        return makeServiceRequest(service, query);
+    }
+
+    static public QueryExecution sparqlService(String service, String query) {
         checkNotNull(service, "URL for service is null");
         checkArg(query);
         return makeServiceRequest(service, query);
@@ -178,12 +184,6 @@ public class VirtuosoQueryExecutionFactory {
 
     // ---------------- Internal routines
 
-    // Make query
-
-    static private Query makeQuery(String queryStr) {
-        return QueryFactory.create(queryStr);
-    }
-
     // ---- Make executions
 
     static private QueryExecution make(Query query) {
@@ -205,6 +205,11 @@ public class VirtuosoQueryExecutionFactory {
 
     static private QueryEngineHTTP makeServiceRequest(String service,
                                                       Query query) {
+        return new QueryEngineHTTP(service, query);
+    }
+
+    static private QueryEngineHTTP makeServiceRequest(String service,
+                                                      String query) {
         return new QueryEngineHTTP(service, query);
     }
 

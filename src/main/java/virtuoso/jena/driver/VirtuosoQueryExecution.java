@@ -29,7 +29,6 @@ import org.apache.jena.graph.Triple;
 import org.apache.jena.query.*;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
-import org.apache.jena.rdf.model.RDFNode;
 import org.apache.jena.rdf.model.Statement;
 import org.apache.jena.shared.JenaException;
 import org.apache.jena.sparql.core.Quad;
@@ -188,55 +187,6 @@ public class VirtuosoQueryExecution implements QueryExecution {
         return false;
     }
 
-    private String substBindings(String query) {
-        if (m_arg == null)
-            return query;
-
-        StringBuilder buf = new StringBuilder();
-        String delim = " ,)(;.";
-        int i = 0;
-        char ch;
-        int qlen = query.length();
-        while (i < qlen) {
-            ch = query.charAt(i++);
-            if (ch == '\\') {
-                buf.append(ch);
-                if (i < qlen)
-                    buf.append(query.charAt(i++));
-
-            } else if (ch == '"' || ch == '\'') {
-                char end = ch;
-                buf.append(ch);
-                while (i < qlen) {
-                    ch = query.charAt(i++);
-                    buf.append(ch);
-                    if (ch == end)
-                        break;
-                }
-            } else if (ch == '?') { // Parameter
-                String varData = null;
-                int j = i;
-                while (j < qlen && delim.indexOf(query.charAt(j)) < 0)
-                    j++;
-                if (j != i) {
-                    String varName = query.substring(i, j);
-                    RDFNode val = m_arg.get(varName);
-                    if (val != null) {
-                        varData = VirtUtilities.toString(val.asNode());
-                        i = j;
-                    }
-                }
-                if (varData != null)
-                    buf.append(varData);
-                else
-                    buf.append(ch);
-            } else {
-                buf.append(ch);
-            }
-        }
-        return buf.toString();
-    }
-
     private String getQueryString() {
         StringBuilder sb = new StringBuilder("sparql\n ");
 
@@ -249,7 +199,7 @@ public class VirtuosoQueryExecution implements QueryExecution {
         if (!graph.getReadFromAllGraphs())
             sb.append(" define input:default-graph-uri <").append(graph.getGraphName()).append("> \n");
 
-        sb.append(substBindings(virt_query));
+        sb.append(VirtUtilities.substituteBindings(virt_query,m_arg));
 
         return sb.toString();
     }

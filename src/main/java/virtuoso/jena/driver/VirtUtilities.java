@@ -9,6 +9,9 @@ import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.graph.impl.LiteralLabel;
 import org.apache.jena.iri.IRI;
 import org.apache.jena.iri.IRIFactory;
+import org.apache.jena.query.Query;
+import org.apache.jena.query.QueryFactory;
+import org.apache.jena.query.QuerySolution;
 import org.apache.jena.rdf.model.Literal;
 import org.apache.jena.rdf.model.RDFNode;
 import org.apache.jena.rdf.model.Resource;
@@ -35,9 +38,10 @@ public class VirtUtilities {
      * @param resource any element on API Jena can be converted to a Node.
      * @return the Jena Graph Node.
      */
-    private static Node createNodeBase(Object resource, String lang, RDFDatatype rdfDatatype, Boolean xml) {
+    private static Node createNodeBase(Object resource, String lang, RDFDatatype rdfDatatype, Boolean xml){
         try {
             if (resource == null) {
+                logger.warn("Try to create a Node from a 'NULL' value");
                 return null;
             } else if (resource instanceof Node) {
                 return (Node) resource;
@@ -106,25 +110,26 @@ public class VirtUtilities {
                 } else if (resource instanceof String) {
                     if (isIRI(resource)) {
                         return NodeUtils.asNode(String.valueOf(resource));
-                   /* } else if (StringUtilities.isURI(resource) || StringUtilities.isURL(resource)) {
+                  /*  } else if (isURI(resource) || isURL(resource)) {
                         return NodeFactory.createURI(String.valueOf(resource));
-                    } else if (StringUtilities.isDouble(resource)) {
+                    } else if (isDouble(resource)) {
                         return NodeFactory.createLiteral(String.valueOf(resource), toRDFDatatype(XSDDatatype.XSDdouble));
-                    } else if (StringUtilities.isFloat(resource)) {
+                    } else if (isFloat(resource)) {
                         return NodeFactory.createLiteral(String.valueOf(resource), toRDFDatatype(XSDDatatype.XSDfloat));
-                    } else if (StringUtilities.isInt(resource)) {
+                    } else if (isInt(resource)) {
                         return NodeFactory.createLiteral(String.valueOf(resource), toRDFDatatype(XSDDatatype.XSDinteger));
-                    } else if (StringUtilities.isNumeric(resource)) {
+                    } else if (isNumeric(resource)) {
                         return NodeFactory.createLiteral(String.valueOf(resource), toRDFDatatype(XSDDatatype.XSDinteger));*/
                     } else {
                         return NodeFactory.createLiteral(String.valueOf(resource), toRDFDatatype(XSDDatatype.XSDstring));
                     }
-                } else {
+                }else{
+                    logger.error("The Node Datatype '" + resource.getClass().getName() + "' is not recognised");
                     return null;
                 }
             }
-        } catch (Exception e) {
-            logger.error(e.getMessage(), e);
+        }catch(Exception e){
+            logger.error(e.getMessage(),e);
             return null;
         }
     }
@@ -345,6 +350,73 @@ public class VirtUtilities {
             return "<" + n + ">";
         }
     }
+
+    /**
+     * Method to substitute all Bindings on the query String.
+     * @param query the String of the Query.
+     * @param querySolution the QuerySolution with the variable to check.
+     * @return the content String of the Query update.
+     */
+    public static String substituteBindings(String query, QuerySolution querySolution) {
+        if (querySolution == null)return query;
+
+        StringBuilder buf = new StringBuilder();
+        String delim = " ,)(;.";
+        int i = 0;
+        char ch;
+        int qlen = query.length();
+        while (i < qlen) {
+            ch = query.charAt(i++);
+            if (ch == '\\') {
+                buf.append(ch);
+                if (i < qlen)
+                    buf.append(query.charAt(i++));
+
+            } else if (ch == '"' || ch == '\'') {
+                char end = ch;
+                buf.append(ch);
+                while (i < qlen) {
+                    ch = query.charAt(i++);
+                    buf.append(ch);
+                    if (ch == end)
+                        break;
+                }
+            } else if (ch == '?') { // Parameter
+                String varData = null;
+                int j = i;
+                while (j < qlen && delim.indexOf(query.charAt(j)) < 0)
+                    j++;
+                if (j != i) {
+                    String varName = query.substring(i, j);
+                    RDFNode val = querySolution.get(varName);
+                    if (val != null) {
+                        varData = toString(val.asNode());
+                        i = j;
+                    }
+                }
+                if (varData != null)
+                    buf.append(varData);
+                else
+                    buf.append(ch);
+            } else {
+                buf.append(ch);
+            }
+        }
+        return buf.toString();
+    }
+
+    // Make query
+
+    public static Query toQuery(String queryStr) {
+        return QueryFactory.create(queryStr);
+    }
+
+    public static Query toQuery(Query query) {
+        return QueryFactory.create(query);
+    }
+
+
+
 
 
 
