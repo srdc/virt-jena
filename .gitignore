@@ -9,7 +9,5 @@ build
 databases
 stores
 *~
-catalog-*
-.idea/*
 /.idea
-.idea
+catalog-*
