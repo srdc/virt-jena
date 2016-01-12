@@ -22,97 +22,96 @@
  */
 package virtuoso.jena.driver;
 
+import org.apache.jena.graph.*;
+import org.apache.jena.graph.impl.GraphBase;
+import org.apache.jena.util.iterator.ExtendedIterator;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
-import com.hp.hpl.jena.graph.GraphEvents;
-import com.hp.hpl.jena.graph.Node;
-import com.hp.hpl.jena.graph.Triple;
-import com.hp.hpl.jena.graph.impl.SimpleBulkUpdateHandler;
-import com.hp.hpl.jena.shared.JenaException;
+/**
+ * @deprecated from jena 3.X.X use instead {@link VirtGraph}
+ */
+public class VirtBulkUpdateHandler extends GraphBase {
 
-public class VirtBulkUpdateHandler extends SimpleBulkUpdateHandler {
+    private static final org.slf4j.Logger logger =
+            org.slf4j.LoggerFactory.getLogger(VirtBulkUpdateHandler.class);
 
-	public VirtBulkUpdateHandler(VirtGraph parent) {
-		super(parent);
-	}
+    private final Graph graph;
 
-	// --java5 or newer @Override
-	public void add(Triple[] triples) {
-		addIterator(Arrays.asList(triples).iterator(), false);
-		manager.notifyAddArray(graph, triples);
-	}
+    public VirtBulkUpdateHandler(VirtGraph parent) {
+        super();
+        graph = parent;
+    }
 
-	// --java5 or newer @Override
-	protected void add(List<Triple> triples, boolean notify) {
-		addIterator(triples.iterator(), false);
-		if (notify)
-			manager.notifyAddList(graph, triples);
-	}
+    // --java5 or newer @Override
+    public void add(Triple[] triples) {
+        addIterator(Arrays.asList(triples).iterator(), false);
+        gem.notifyAddArray(graph, triples);
+    }
 
-	// --java5 or newer @Override
-	public void addIterator(Iterator<Triple> it, boolean notify) {
-		VirtGraph _graph = (VirtGraph) this.graph;
-		List list = notify ? new ArrayList() : null;
+    // --java5 or newer @Override
+    protected void add(List<Triple> triples, boolean notify) {
+        addIterator(triples.iterator(), false);
+        if (notify)
+            gem.notifyAddList(graph, triples);
+    }
 
-		try {
-			boolean autoCommit = _graph.getConnection().getAutoCommit();
-			if (autoCommit)
-				_graph.getConnection().setAutoCommit(false);
-			_graph.add(it, list);
-			if (autoCommit) {
-				_graph.getConnection().commit();
-				_graph.getConnection().setAutoCommit(true);
-			}
-		} catch (Exception e) {
-			throw new JenaException("Couldn't create transaction:" + e);
-		}
-		if (notify)
-			manager.notifyAddIterator(graph, list);
-	}
+    // --java5 or newer @Override
+    public void addIterator(Iterator<Triple> it, boolean notify) {
+        VirtGraph _graph = (VirtGraph) this.graph;
+        List<Triple> list;
+        if (notify) list = new ArrayList<>();
+        else list = null;
 
-	public void delete(Triple[] triples) {
-		deleteIterator(Arrays.asList(triples).iterator(), false);
-		manager.notifyDeleteArray(graph, triples);
-	}
+        _graph = _graph.prepareGraphConnection(_graph, it, list);
 
-	protected void delete(List<Triple> triples, boolean notify) {
-		deleteIterator(triples.iterator(), false);
-		if (notify)
-			manager.notifyDeleteList(graph, triples);
-	}
+        if (notify)
+            gem.notifyAddIterator(_graph, list);
+    }
 
-	public void deleteIterator(Iterator<Triple> it, boolean notify) {
-		VirtGraph _graph = (VirtGraph) this.graph;
-		List list = notify ? new ArrayList() : null;
+    public void delete(Triple[] triples) {
+        deleteIterator(Arrays.asList(triples).iterator(), false);
+        gem.notifyDeleteArray(graph, triples);
+    }
 
-		try {
-			boolean autoCommit = _graph.getConnection().getAutoCommit();
-			if (autoCommit)
-				_graph.getConnection().setAutoCommit(false);
-			_graph.delete(it, list);
-			if (autoCommit) {
-				_graph.getConnection().commit();
-				_graph.getConnection().setAutoCommit(true);
-			}
-		} catch (Exception e) {
-			throw new JenaException("Couldn't create transaction:" + e);
-		}
-		if (notify)
-			manager.notifyDeleteIterator(graph, list);
-	}
+    protected void delete(List<Triple> triples, boolean notify) {
+        deleteIterator(triples.iterator(), false);
+        if (notify)
+            gem.notifyDeleteList(graph, triples);
+    }
 
-	public void removeAll() {
-		VirtGraph _graph = (VirtGraph) this.graph;
-		_graph.clearGraph(_graph.getGraphName());
-		notifyRemoveAll();
-	}
+    public void deleteIterator(Iterator<Triple> it, boolean notify) {
+        VirtGraph _graph = (VirtGraph) this.graph;
+        List<Triple> list;
+        if (notify) list = new ArrayList<>();
+        else list = null;
 
-	public void remove(Node s, Node p, Node o) {
-		VirtGraph _graph = (VirtGraph) this.graph;
-		_graph.delete_match(Triple.createMatch(s, p, o));
-		manager.notifyEvent(graph, GraphEvents.remove(s, p, o));
-	}
+        _graph = _graph.prepareGraphConnection(_graph, it, list);
+
+        if (notify)
+            gem.notifyDeleteIterator(_graph, list);
+    }
+
+    public void removeAll() {
+        VirtGraph _graph = (VirtGraph) this.graph;
+        _graph.clearGraph(_graph.getGraphName());
+    }
+
+    @Override
+    public void remove(Node s, Node p, Node o) {
+        VirtGraph _graph = (VirtGraph) this.graph;
+        _graph.delete_match(Triple.createMatch(s, p, o));
+        gem.notifyEvent(_graph, GraphEvents.remove(s, p, o));
+    }
+
+    @Override
+    protected ExtendedIterator<Triple> graphBaseFind(Triple triplePattern) {
+        return super.graphBaseFind(
+                triplePattern.getMatchSubject(), triplePattern.getMatchPredicate(), triplePattern.getMatchObject());
+    }
+
+
 }

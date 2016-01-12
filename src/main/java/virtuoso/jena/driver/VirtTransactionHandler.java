@@ -26,86 +26,93 @@ package virtuoso.jena.driver;
 import java.sql.Connection;
 import java.sql.SQLException;
 
-import com.hp.hpl.jena.graph.impl.TransactionHandlerBase;
-import com.hp.hpl.jena.shared.JenaException;
+import org.apache.jena.graph.impl.TransactionHandlerBase;
+import org.apache.jena.shared.JenaException;
 
 public class VirtTransactionHandler extends TransactionHandlerBase {
 
-	private VirtGraph graph = null;
-	private Boolean m_transactionsSupported = null;
+    private static final org.slf4j.Logger logger =
+            org.slf4j.LoggerFactory.getLogger(VirtTransactionHandler.class);
 
-	public VirtTransactionHandler(VirtGraph _graph) {
-		super();
-		this.graph = _graph;
-	}
+    private VirtGraph graph = null;
+    private Boolean m_transactionsSupported = null;
 
-	public boolean transactionsSupported() {
-		if (m_transactionsSupported != null) {
-			return (m_transactionsSupported.booleanValue());
-		}
+    public VirtTransactionHandler(VirtGraph _graph) {
+        super();
+        this.graph = _graph;
+    }
 
-		try {
-			Connection c = graph.getConnection();
-			if (c != null) {
-				m_transactionsSupported = new Boolean(c.getMetaData()
-						.supportsMultipleTransactions());
-				return (m_transactionsSupported.booleanValue());
-			}
-		} catch (Exception e) {
-			throw new JenaException(e);
-		}
-		return (false);
-	}
+    @Override
+    public boolean transactionsSupported() {
+        if (m_transactionsSupported != null) {
+            return (m_transactionsSupported);
+        }
 
-	public void begin() {
-		if (transactionsSupported()) {
-			try {
-				Connection c = graph.getConnection();
-				if (c.getTransactionIsolation() != Connection.TRANSACTION_READ_COMMITTED) {
-					c.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
-				}
-				if (c.getAutoCommit()) {
-					c.setAutoCommit(false);
-				}
-			} catch (SQLException e) {
-				throw new JenaException("Transaction begin failed: ", e);
-			}
-		} else {
-			notSupported("begin transaction");
-		}
-	}
+        try {
+            Connection c = graph.getConnection();
+            if (c != null) {
+                m_transactionsSupported = c.getMetaData()
+                        .supportsMultipleTransactions();
+                return (m_transactionsSupported);
+            }
+        } catch (Exception e) {
+            throw new JenaException(e);
+        }
+        return (false);
+    }
 
-	public void abort() {
-		if (transactionsSupported()) {
-			try {
-				Connection c = graph.getConnection();
-				c.rollback();
-				c.commit();
-				c.setAutoCommit(true);
-			} catch (SQLException e) {
-				throw new JenaException("Transaction rollback failed: ", e);
-			}
-		} else {
-			notSupported("abort transaction");
-		}
-	}
+    @Override
+    public void begin() {
+        if (transactionsSupported()) {
+            try {
+                Connection c = graph.getConnection();
+                if (c.getTransactionIsolation() != Connection.TRANSACTION_READ_COMMITTED) {
+                    c.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+                }
+                if (c.getAutoCommit()) {
+                    c.setAutoCommit(false);
+                }
+            } catch (SQLException e) {
+                throw new JenaException("Transaction begin failed: ", e);
+            }
+        } else {
+            notSupported("begin transaction");
+        }
+    }
 
-	public void commit() {
-		if (transactionsSupported()) {
-			try {
-				Connection c = graph.getConnection();
-				c.commit();
-				c.setAutoCommit(true);
-			} catch (SQLException e) {
-				throw new JenaException("Transaction commit failed: ", e);
-			}
-		} else {
-			notSupported("commit transaction");
-		}
-	}
+    @Override
+    public void abort() {
+        if (transactionsSupported()) {
+            try {
+                Connection c = graph.getConnection();
+                c.rollback();
+                c.commit();
+                c.setAutoCommit(true);
+            } catch (SQLException e) {
+                throw new JenaException("Transaction rollback failed: ", e);
+            }
+        } else {
+            notSupported("abort transaction");
+        }
+    }
 
-	private void notSupported(String opName) {
-		throw new UnsupportedOperationException(opName);
-	}
+    @Override
+    public void commit() {
+        if (transactionsSupported()) {
+            try {
+                Connection c = graph.getConnection();
+                c.commit();
+                c.setAutoCommit(true);
+            } catch (SQLException e) {
+                throw new JenaException("Transaction commit failed: ", e);
+            }
+        } else {
+            notSupported("commit transaction");
+        }
+    }
+
+    private void notSupported(String opName) {
+        throw new UnsupportedOperationException(opName);
+    }
 
 }

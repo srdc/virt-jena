@@ -22,64 +22,67 @@
  */
 package virtuoso.jena.driver;
 
+import org.apache.jena.rdf.model.Model;
+import org.apache.jena.rdf.model.impl.ModelCom;
 import virtuoso.jdbc4.VirtuosoDataSource;
-
-import com.hp.hpl.jena.rdf.model.Model;
-import com.hp.hpl.jena.rdf.model.impl.ModelCom;
 
 public class VirtModel extends ModelCom {
 
-	/**
-	 * @param base
-	 */
-	public VirtModel(VirtGraph base) {
-		super(base);
-	}
+    private static final org.slf4j.Logger logger =
+            org.slf4j.LoggerFactory.getLogger(VirtModel.class);
 
-	public static VirtModel openDefaultModel(VirtuosoDataSource ds) {
-		return new VirtModel(new VirtGraph(ds));
-	}
+    /**
+     * @param base {@link VirtGraph}
+     */
+    public VirtModel(VirtGraph base) {
+        super(base);
+    }
 
-	public static VirtModel openDatabaseModel(String graphName,
-			VirtuosoDataSource ds) {
-		return new VirtModel(new VirtGraph(graphName, ds));
-	}
+    public static VirtModel openDefaultModel(VirtuosoDataSource ds) {
+        return new VirtModel(new VirtGraph(ds));
+    }
 
-	public static VirtModel openDefaultModel(String url, String user,
-			String password) {
-		return new VirtModel(new VirtGraph(url, user, password));
-	}
+    public static VirtModel openDatabaseModel(String graphName,
+                                              VirtuosoDataSource ds) {
+        return new VirtModel(new VirtGraph(graphName, ds));
+    }
 
-	public static VirtModel openDatabaseModel(String graphName, String url,
-			String user, String password) {
-		return new VirtModel(new VirtGraph(graphName, url, user, password));
-	}
+    public static VirtModel openDefaultModel(String url, String user,
+                                             String password) {
+        return new VirtModel(new VirtGraph(url, user, password));
+    }
 
-	// --java5 or newer @Override
-	public Model removeAll() {
-		try {
-			VirtGraph _graph = (VirtGraph) this.graph;
-			_graph.clear();
-		} catch (ClassCastException e) {
-			super.removeAll();
-		}
-		return this;
-	}
+    public static VirtModel openDatabaseModel(String graphName, String url,
+                                              String user, String password) {
+        return new VirtModel(new VirtGraph(graphName, url, user, password));
+    }
 
-	public void createRuleSet(String ruleSetName, String uriGraphRuleSet) {
-		((VirtGraph) this.graph).createRuleSet(ruleSetName, uriGraphRuleSet);
-	}
+    // --java5 or newer @Override
+    @Override
+    public Model removeAll() {
+        try {
+            VirtGraph _graph = (VirtGraph) this.graph;
+            _graph.clear();
+        } catch (ClassCastException e) {
+            super.removeAll();
+        }
+        return this;
+    }
 
-	public void removeRuleSet(String ruleSetName, String uriGraphRuleSet) {
-		((VirtGraph) this.graph).removeRuleSet(ruleSetName, uriGraphRuleSet);
-	}
+    public void createRuleSet(String ruleSetName, String uriGraphRuleSet) {
+        ((VirtGraph) this.graph).createRuleSet(ruleSetName, uriGraphRuleSet);
+    }
 
-	public void setRuleSet(String _ruleSet) {
-		((VirtGraph) this.graph).setRuleSet(_ruleSet);
-	}
+    public void removeRuleSet(String ruleSetName, String uriGraphRuleSet) {
+        ((VirtGraph) this.graph).removeRuleSet(ruleSetName, uriGraphRuleSet);
+    }
 
-	public void setSameAs(boolean _sameAs) {
-		((VirtGraph) this.graph).setSameAs(_sameAs);
-	}
+    public void setRuleSet(String _ruleSet) {
+        ((VirtGraph) this.graph).setRuleSet(_ruleSet);
+    }
+
+    public void setSameAs(boolean _sameAs) {
+        ((VirtGraph) this.graph).setSameAs(_sameAs);
+    }
 
 }

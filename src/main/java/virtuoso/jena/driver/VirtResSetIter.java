@@ -23,132 +23,142 @@
 
 package virtuoso.jena.driver;
 
+import org.apache.jena.graph.Node;
+import org.apache.jena.graph.Triple;
+import org.apache.jena.shared.JenaException;
+import org.apache.jena.util.iterator.NiceIterator;
+
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.NoSuchElementException;
 
-import com.hp.hpl.jena.graph.Node;
-import com.hp.hpl.jena.graph.Triple;
-import com.hp.hpl.jena.graph.TripleMatch;
-import com.hp.hpl.jena.shared.JenaException;
-import com.hp.hpl.jena.util.iterator.NiceIterator;
-
 public class VirtResSetIter extends NiceIterator<Triple> {
-	protected ResultSet v_resultSet;
-	protected Triple v_row;
-	protected TripleMatch v_in;
-	protected boolean v_finished = false;
-	protected boolean v_prefetched = false;
-	protected VirtGraph v_graph = null;
-	protected PreparedStatement v_stmt = null;
 
-	public VirtResSetIter() {
-		v_finished = true;
-	}
+    private static final org.slf4j.Logger logger =
+            org.slf4j.LoggerFactory.getLogger(VirtResSetIter.class);
 
-	public VirtResSetIter(VirtGraph graph, ResultSet resultSet, TripleMatch in,
-			PreparedStatement stmt) {
-		v_resultSet = resultSet;
-		v_in = in;
-		v_graph = graph;
-		v_stmt = stmt;
-	}
+    protected ResultSet v_resultSet;
+    protected Triple v_row;
+    protected Triple v_in;
+    protected boolean v_finished = false;
+    protected boolean v_prefetched = false;
+    protected VirtGraph v_graph = null;
+    protected PreparedStatement v_stmt = null;
 
-	public void reset(ResultSet resultSet, PreparedStatement sourceStatement) {
-		v_resultSet = resultSet;
-		v_finished = false;
-		v_prefetched = false;
-		v_row = null;
-	}
+    public VirtResSetIter() {
+        v_finished = true;
+    }
 
-	public boolean hasNext() {
-		if (!v_finished && !v_prefetched)
-			moveForward();
-		return !v_finished;
-	}
+    public VirtResSetIter(VirtGraph graph, ResultSet resultSet, Triple in,
+                          PreparedStatement stmt) {
+        v_resultSet = resultSet;
+        v_in = in;
+        v_graph = graph;
+        v_stmt = stmt;
+    }
 
-	public Triple removeNext() {
-		Triple ret = next();
-		remove();
-		return ret;
-	}
+    public void reset(ResultSet resultSet, PreparedStatement sourceStatement) {
+        v_resultSet = resultSet;
+        v_finished = false;
+        v_prefetched = false;
+        v_row = null;
+    }
 
-	public Triple next() {
-		if (!v_finished && !v_prefetched)
-			moveForward();
+    @Override
+    public boolean hasNext() {
+        if (!v_finished && !v_prefetched)
+            moveForward();
+        return !v_finished;
+    }
 
-		v_prefetched = false;
+    @Override
+    public Triple removeNext() {
+        Triple ret = next();
+        remove();
+        return ret;
+    }
 
-		if (v_finished)
-			throw new NoSuchElementException();
+    @Override
+    public Triple next() {
+        if (!v_finished && !v_prefetched)
+            moveForward();
 
-		return getRow();
-	}
+        v_prefetched = false;
 
-	public void remove() {
-		if (v_row != null && v_graph != null) {
-			v_graph.delete(v_row);
-			v_row = null;
-		}
-	}
+        if (v_finished)
+            throw new NoSuchElementException();
 
-	protected void moveForward() {
-		try {
-			if (!v_finished && v_resultSet.next()) {
-				extractRow();
-				v_prefetched = true;
-			} else
-				close();
-		} catch (Exception e) {
-			throw new JenaException(e);
-		}
-	}
+        return getRow();
+    }
 
-	protected void extractRow() throws Exception {
-		Node NodeS, NodeP, NodeO;
+    @Override
+    public void remove() {
+        if (v_row != null && v_graph != null) {
+            v_graph.delete(v_row);
+            v_row = null;
+        }
+    }
 
-		if (v_in.getMatchSubject() != null)
-			NodeS = v_in.getMatchSubject();
-		else
-			NodeS = VirtGraph.Object2Node(v_resultSet.getObject("s"));
+    protected void moveForward() {
+        try {
+            if (!v_finished && v_resultSet.next()) {
+                extractRow();
+                v_prefetched = true;
+            } else
+                close();
+        } catch (Exception e) {
+            throw new JenaException(e);
+        }
+    }
 
-		if (v_in.getMatchPredicate() != null)
-			NodeP = v_in.getMatchPredicate();
-		else
-			NodeP = VirtGraph.Object2Node(v_resultSet.getObject("p"));
+    protected void extractRow() throws Exception {
+        Node NodeS, NodeP, NodeO;
 
-		if (v_in.getMatchObject() != null)
-			NodeO = v_in.getMatchObject();
-		else
-			NodeO = VirtGraph.Object2Node(v_resultSet.getObject("o"));
+        if (v_in.getMatchSubject() != null)
+            NodeS = v_in.getMatchSubject();
+        else
+            NodeS = VirtUtilities.toNode(v_resultSet.getObject("s"));
 
-		v_row = new Triple(NodeS, NodeP, NodeO);
-	}
+        if (v_in.getMatchPredicate() != null)
+            NodeP = v_in.getMatchPredicate();
+        else
+            NodeP = VirtUtilities.toNode(v_resultSet.getObject("p"));
 
-	protected Triple getRow() {
-		return v_row;
-	}
+        if (v_in.getMatchObject() != null)
+            NodeO = v_in.getMatchObject();
+        else
+            NodeO = VirtUtilities.toNode(v_resultSet.getObject("o"));
 
-	public void close() {
-		if (!v_finished) {
-			if (v_resultSet != null) {
-				try {
-					v_resultSet.close();
-					v_stmt.close();
-					v_resultSet = null;
-					v_stmt = null;
-				} catch (SQLException e) {
-					throw new JenaException(e);
-				}
-			}
-		}
-		v_finished = true;
-	}
+        v_row = new Triple(NodeS, NodeP, NodeO);
+    }
 
-	protected void finalize() throws SQLException {
-		if (!v_finished && v_resultSet != null)
-			close();
-	}
+    protected Triple getRow() {
+        return v_row;
+    }
+
+    @Override
+    public void close() {
+        if (!v_finished) {
+            if (v_resultSet != null) {
+                try {
+                    v_resultSet.close();
+                    v_stmt.close();
+                    v_resultSet = null;
+                    v_stmt = null;
+                } catch (SQLException e) {
+                    throw new JenaException(e);
+                }
+            }
+        }
+        v_finished = true;
+    }
+
+    @Override
+    protected void finalize() throws Throwable {
+        if (!v_finished && v_resultSet != null)
+            super.finalize();
+        close();
+    }
 
 }

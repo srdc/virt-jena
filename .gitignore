@@ -9,4 +9,5 @@ build
 databases
 stores
 *~
+/.idea
 catalog-*

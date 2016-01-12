@@ -28,931 +28,776 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.Calendar;
-import java.util.GregorianCalendar;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
+import org.apache.jena.datatypes.TypeMapper;
+import org.apache.jena.graph.*;
+import org.apache.jena.graph.impl.GraphBase;
+import org.apache.jena.rdf.model.impl.ModelCom;
+import org.apache.jena.shared.AddDeniedException;
+import org.apache.jena.shared.DeleteDeniedException;
+import org.apache.jena.shared.JenaException;
+import org.apache.jena.shared.PrefixMapping;
+import org.apache.jena.util.iterator.ExtendedIterator;
+import org.apache.jena.util.iterator.NiceIterator;
 import virtuoso.jdbc4.VirtuosoConnectionPoolDataSource;
 import virtuoso.jdbc4.VirtuosoDataSource;
-import virtuoso.sql.ExtendedString;
-import virtuoso.sql.RdfBox;
-
-import com.hp.hpl.jena.datatypes.RDFDatatype;
-import com.hp.hpl.jena.datatypes.TypeMapper;
-import com.hp.hpl.jena.graph.BulkUpdateHandler;
-import com.hp.hpl.jena.graph.GraphEvents;
-import com.hp.hpl.jena.graph.Node;
-import com.hp.hpl.jena.graph.TransactionHandler;
-import com.hp.hpl.jena.graph.Triple;
-import com.hp.hpl.jena.graph.TripleMatch;
-import com.hp.hpl.jena.graph.impl.GraphBase;
-import com.hp.hpl.jena.rdf.model.AnonId;
-import com.hp.hpl.jena.rdf.model.impl.ModelCom;
-import com.hp.hpl.jena.shared.AddDeniedException;
-import com.hp.hpl.jena.shared.DeleteDeniedException;
-import com.hp.hpl.jena.shared.JenaException;
-import com.hp.hpl.jena.shared.PrefixMapping;
-import com.hp.hpl.jena.util.iterator.ExtendedIterator;
-import com.hp.hpl.jena.util.iterator.NiceIterator;
 
 public class VirtGraph extends GraphBase {
-	static {
-		VirtuosoQueryEngine.register();
-	}
-
-	static public final String DEFAULT = "virt:DEFAULT";
-	protected String graphName;
-	protected boolean readFromAllGraphs = false;
-	protected String url_hostlist;
-	protected String user;
-	protected String password;
-	protected boolean roundrobin = false;
-	protected int prefetchSize = 200;
-	protected Connection connection = null;
-	protected String ruleSet = null;
-	protected boolean useSameAs = false;
-	protected int queryTimeout = 0;
-	static final String sinsert = "sparql insert into graph iri(??) { `iri(??)` `iri(??)` `bif:__rdf_long_from_batch_params(??,??,??)` }";
-	static final String sdelete = "sparql delete from graph iri(??) {`iri(??)` `iri(??)` `bif:__rdf_long_from_batch_params(??,??,??)`}";
-	static final int BATCH_SIZE = 5000;
-	static final String utf8 = "charset=utf-8";
-	static final String charset = "UTF-8";
-
-	private VirtuosoConnectionPoolDataSource pds = new VirtuosoConnectionPoolDataSource();
-	private VirtuosoDataSource ds;
-
-	private boolean isDSconnection = false;
-
-	public VirtGraph() {
-		this(null, "jdbc:virtuoso://localhost:1111/charset=UTF-8", null, null,
-				false);
-	}
-
-	public VirtGraph(String graphName) {
-		this(graphName, "jdbc:virtuoso://localhost:1111/charset=UTF-8", null,
-				null, false);
-	}
-
-	public VirtGraph(String graphName, String _url_hostlist, String user,
-			String password) {
-		this(graphName, _url_hostlist, user, password, false);
-	}
-
-	public VirtGraph(String url_hostlist, String user, String password) {
-		this(null, url_hostlist, user, password, false);
-	}
-
-	public VirtGraph(String _graphName, VirtuosoDataSource _ds) {
-		super();
-
-		this.url_hostlist = _ds.getServerName();
-		this.graphName = _graphName;
-		this.user = _ds.getUser();
-		this.password = _ds.getPassword();
-
-		if (this.graphName == null)
-			this.graphName = DEFAULT;
-
-		try {
-			connection = _ds.getConnection();
-			isDSconnection = true;
-			ds = _ds;
-			ModelCom m = new ModelCom(this); // don't drop is it needed for
-												// initialize internal Jena
-												// classes
-			TypeMapper tm = TypeMapper.getInstance();
-		} catch (Exception e) {
-			throw new JenaException(e);
-		}
-	}
-
-	public VirtGraph(VirtuosoDataSource _ds) {
-		this(null, _ds);
-	}
-
-	public VirtGraph(String graphName, String _url_hostlist, String user,
-			String password, boolean _roundrobin) {
-		super();
-
-		this.url_hostlist = _url_hostlist.trim();
-		this.roundrobin = _roundrobin;
-		this.graphName = graphName;
-		this.user = user;
-		this.password = password;
-
-		if (this.graphName == null)
-			this.graphName = DEFAULT;
-
-		try {
-			if (url_hostlist.startsWith("jdbc:virtuoso://")) {
-
-				String url = url_hostlist;
-				if (url.toLowerCase().indexOf(utf8) == -1) {
-					if (url.charAt(url.length() - 1) != '/')
-						url = url + "/charset=UTF-8";
-					else
-						url = url + "charset=UTF-8";
-				}
-				if (roundrobin
-						&& url.toLowerCase().indexOf("roundrobin=") == -1) {
-					if (url.charAt(url.length() - 1) != '/')
-						url = url + "/roundrobin=1";
-					else
-						url = url + "roundrobin=1";
-				}
-				Class.forName("virtuoso.jdbc4.Driver");
-				connection = DriverManager.getConnection(url, user, password);
-			} else {
-				pds.setServerName(url_hostlist);
-				pds.setUser(user);
-				pds.setPassword(password);
-				pds.setCharset(charset);
-				pds.setRoundrobin(roundrobin);
-				javax.sql.PooledConnection pconn = pds.getPooledConnection();
-				connection = pconn.getConnection();
-				isDSconnection = true;
-			}
-
-			ModelCom m = new ModelCom(this); // don't drop is it needed for
-												// initialize internal Jena
-												// classes
-			TypeMapper tm = TypeMapper.getInstance();
-		} catch (Exception e) {
-			throw new JenaException(e);
-		}
-
-	}
-
-	// getters
-	public VirtuosoDataSource getDataSource() {
-		if (isDSconnection)
-			return (ds != null ? ds : (VirtuosoDataSource) pds);
-		else
-			return null;
-	}
-
-	public String getGraphName() {
-		return this.graphName;
-	}
-
-	public String getGraphUrl() {
-		return this.url_hostlist;
-	}
-
-	public String getGraphUser() {
-		return this.user;
-	}
-
-	public String getGraphPassword() {
-		return this.password;
-	}
-
-	public Connection getConnection() {
-		return this.connection;
-	}
-
-	public int getFetchSize() {
-		return this.prefetchSize;
-	}
-
-	public void setFetchSize(int sz) {
-		this.prefetchSize = sz;
-	}
-
-	public int getQueryTimeout() {
-		return this.queryTimeout;
-	}
-
-	public void setQueryTimeout(int seconds) {
-		this.queryTimeout = seconds;
-	}
-
-	public int getCount() {
-		return size();
-	}
-
-	public void remove(List triples) {
-		delete(triples.iterator(), null);
-	}
-
-	public void remove(Triple t) {
-		delete(t);
-	}
-
-	public boolean getReadFromAllGraphs() {
-		return readFromAllGraphs;
-	}
-
-	public void setReadFromAllGraphs(boolean val) {
-		readFromAllGraphs = val;
-	}
-
-	public String getRuleSet() {
-		return ruleSet;
-	}
-
-	public void setRuleSet(String _ruleSet) {
-		ruleSet = _ruleSet;
-	}
-
-	public boolean getSameAs() {
-		return useSameAs;
-	}
-
-	public void setSameAs(boolean _sameAs) {
-		useSameAs = _sameAs;
-	}
-
-	public void createRuleSet(String ruleSetName, String uriGraphRuleSet) {
-		checkOpen();
-
-		try {
-			java.sql.Statement st = createStatement();
-			st.execute("rdfs_rule_set('" + ruleSetName + "', '"
-					+ uriGraphRuleSet + "')");
-			st.close();
-		} catch (Exception e) {
-			throw new JenaException(e);
-		}
-	}
-
-	public void removeRuleSet(String ruleSetName, String uriGraphRuleSet) {
-		checkOpen();
-
-		try {
-			java.sql.Statement st = createStatement();
-			st.execute("rdfs_rule_set('" + ruleSetName + "', '"
-					+ uriGraphRuleSet + "', 1)");
-			st.close();
-		} catch (Exception e) {
-			throw new JenaException(e);
-		}
-	}
-
-	private static String escapeString(String s) {
-		StringBuffer buf = new StringBuffer(s.length());
-		int i = 0;
-		char ch;
-		while (i < s.length()) {
-			ch = s.charAt(i++);
-			if (ch == '\'')
-				buf.append('\\');
-			buf.append(ch);
-		}
-		return buf.toString();
-	}
-
-	protected java.sql.Statement createStatement() throws java.sql.SQLException {
-		checkOpen();
-		java.sql.Statement st = connection.createStatement();
-		if (queryTimeout > 0)
-			st.setQueryTimeout(queryTimeout);
-		st.setFetchSize(prefetchSize);
-		return st;
-	}
-
-	protected java.sql.PreparedStatement prepareStatement(String sql)
-			throws java.sql.SQLException {
-		checkOpen();
-		java.sql.PreparedStatement st = connection.prepareStatement(sql);
-		if (queryTimeout > 0)
-			st.setQueryTimeout(queryTimeout);
-		st.setFetchSize(prefetchSize);
-		return st;
-	}
-
-	// GraphBase overrides
-	public static String Node2Str(Node n) {
-		if (n.isURI()) {
-			return "<" + n + ">";
-		} else if (n.isBlank()) {
-			return "<_:" + n + ">";
-		} else if (n.isLiteral()) {
-			String s;
-			StringBuffer sb = new StringBuffer();
-			sb.append("'");
-			sb.append(escapeString(n.getLiteralValue().toString()));
-			sb.append("'");
-
-			s = n.getLiteralLanguage();
-			if (s != null && s.length() > 0) {
-				sb.append("@");
-				sb.append(s);
-			}
-			s = n.getLiteralDatatypeURI();
-			if (s != null && s.length() > 0) {
-				sb.append("^^<");
-				sb.append(s);
-				sb.append(">");
-			}
-			return sb.toString();
-		} else {
-			return "<" + n + ">";
-		}
-	}
-
-	void bindSubject(PreparedStatement ps, int col, Node n) throws SQLException {
-		if (n == null)
-			return;
-		if (n.isURI())
-			ps.setString(col, n.toString());
-		else if (n.isBlank())
-			ps.setString(col, "_:" + n.toString());
-		else
-			throw new SQLException(
-					"Only URI or Blank nodes can be used as subject");
-	}
-
-	void bindPredicate(PreparedStatement ps, int col, Node n)
-			throws SQLException {
-		if (n == null)
-			return;
-		if (n.isURI())
-			ps.setString(col, n.toString());
-		else
-			throw new SQLException("Only URI nodes can be used as predicate");
-	}
-
-	void bindObject(PreparedStatement ps, int col, Node n) throws SQLException {
-		if (n == null)
-			return;
-		if (n.isURI()) {
-			ps.setInt(col, 1);
-			ps.setString(col + 1, n.toString());
-			ps.setNull(col + 2, java.sql.Types.VARCHAR);
-		} else if (n.isBlank()) {
-			ps.setInt(col, 1);
-			ps.setString(col + 1, "_:" + n.toString());
-			ps.setNull(col + 2, java.sql.Types.VARCHAR);
-		} else if (n.isLiteral()) {
-			String llang = n.getLiteralLanguage();
-			String ltype = n.getLiteralDatatypeURI();
-			if (llang != null && llang.length() > 0) {
-				ps.setInt(col, 5);
-				ps.setString(col + 1, n.getLiteralValue().toString());
-				ps.setString(col + 2, n.getLiteralLanguage());
-			} else if (ltype != null && ltype.length() > 0) {
-				ps.setInt(col, 4);
-				ps.setString(col + 1, n.getLiteralValue().toString());
-				ps.setString(col + 2, n.getLiteralDatatypeURI());
-			} else {
-				ps.setInt(col, 3);
-				ps.setString(col + 1, n.getLiteralValue().toString());
-				ps.setNull(col + 2, java.sql.Types.VARCHAR);
-			}
-		} else {
-			ps.setInt(col, 3);
-			ps.setString(col + 1, n.toString());
-			ps.setNull(col + 2, java.sql.Types.VARCHAR);
-		}
-	}
-
-	// --java5 or newer @Override
-	public void performAdd(Triple t) {
-		java.sql.PreparedStatement ps;
-
-		try {
-			ps = prepareStatement(sinsert);
-			ps.setString(1, this.graphName);
-			bindSubject(ps, 2, t.getSubject());
-			bindPredicate(ps, 3, t.getPredicate());
-			bindObject(ps, 4, t.getObject());
-
-			ps.execute();
-			ps.close();
-		} catch (Exception e) {
-			throw new AddDeniedException(e.toString());
-		}
-	}
-
-	public void performDelete(Triple t) {
-		java.sql.PreparedStatement ps;
-
-		try {
-			ps = prepareStatement(sdelete);
-			ps.setString(1, this.graphName);
-			bindSubject(ps, 2, t.getSubject());
-			bindPredicate(ps, 3, t.getPredicate());
-			bindObject(ps, 4, t.getObject());
-
-			ps.execute();
-			ps.close();
-		} catch (Exception e) {
-			throw new DeleteDeniedException(e.toString());
-		}
-	}
-
-	/**
-	 * more efficient
-	 */
-	// --java5 or newer @Override
-	protected int graphBaseSize() {
-		StringBuffer sb = new StringBuffer(
-				"select count(*) from (sparql define input:storage \"\" ");
-
-		if (ruleSet != null)
-			sb.append(" define input:inference '" + ruleSet + "'\n ");
-
-		if (useSameAs)
-			sb.append(" define input:same-as \"yes\"\n ");
-
-		if (readFromAllGraphs)
-			sb.append(" select * where {?s ?p ?o })f");
-		else
-			sb.append(" select * where { graph `iri(??)` { ?s ?p ?o }})f");
-
-		ResultSet rs = null;
-		int ret = 0;
-
-		checkOpen();
-
-		try {
-			java.sql.PreparedStatement ps = prepareStatement(sb.toString());
-
-			if (!readFromAllGraphs)
-				ps.setString(1, graphName);
-
-			rs = ps.executeQuery();
-			if (rs.next())
-				ret = rs.getInt(1);
-			rs.close();
-			ps.close();
-		} catch (Exception e) {
-			throw new JenaException(e);
-		}
-		return ret;
-	}
-
-	/**
-	 * maybe more efficient than default impl
-	 * 
-	 */
-	// --java5 or newer @Override
-	protected boolean graphBaseContains(Triple t) {
-		ResultSet rs = null;
-		String S, P, O;
-		StringBuffer sb = new StringBuffer("sparql define input:storage \"\" ");
-		String exec_text;
-
-		checkOpen();
-
-		S = " ?s ";
-		P = " ?p ";
-		O = " ?o ";
-
-		if (!Node.ANY.equals(t.getSubject()))
-			S = Node2Str(t.getSubject());
-
-		if (!Node.ANY.equals(t.getPredicate()))
-			P = Node2Str(t.getPredicate());
-
-		if (!Node.ANY.equals(t.getObject()))
-			O = Node2Str(t.getObject());
-
-		if (ruleSet != null)
-			sb.append(" define input:inference '" + ruleSet + "'\n ");
-
-		if (useSameAs)
-			sb.append(" define input:same-as \"yes\"\n ");
-
-		if (readFromAllGraphs)
-			sb.append(" select * where { " + S + " " + P + " " + O
-					+ " } limit 1");
-		else
-			sb.append(" select * where { graph <" + graphName + "> { " + S
-					+ " " + P + " " + O + " }} limit 1");
-
-		try {
-			java.sql.Statement stmt = createStatement();
-			rs = stmt.executeQuery(sb.toString());
-			boolean ret = rs.next();
-			rs.close();
-			stmt.close();
-			return ret;
-		} catch (Exception e) {
-			throw new JenaException(e);
-		}
-	}
-
-	// --java5 or newer @Override
-	public ExtendedIterator<Triple> graphBaseFind(TripleMatch tm) {
-		String S, P, O;
-		StringBuffer sb = new StringBuffer("sparql ");
-
-		checkOpen();
-
-		S = " ?s ";
-		P = " ?p ";
-		O = " ?o ";
-
-		if (tm.getMatchSubject() != null)
-			S = Node2Str(tm.getMatchSubject());
-
-		if (tm.getMatchPredicate() != null)
-			P = Node2Str(tm.getMatchPredicate());
-
-		if (tm.getMatchObject() != null)
-			O = Node2Str(tm.getMatchObject());
-
-		if (ruleSet != null)
-			sb.append(" define input:inference '" + ruleSet + "'\n ");
-
-		if (useSameAs)
-			sb.append(" define input:same-as \"yes\"\n ");
-
-		if (readFromAllGraphs)
-			sb.append(" select * where { " + S + " " + P + " " + O + " }");
-		else
-			sb.append(" select * from <" + graphName + "> where { " + S + " "
-					+ P + " " + O + " }");
-
-		try {
-			java.sql.PreparedStatement stmt;
-			stmt = prepareStatement(sb.toString());
-			return new VirtResSetIter(this, stmt.executeQuery(), tm, stmt);
-		} catch (Exception e) {
-			throw new JenaException(e);
-		}
-	}
-
-	// --java5 or newer @Override
-	public void close() {
-		try {
-			super.close(); // will set closed = true
-			connection.close();
-		} catch (Exception e) {
-			throw new JenaException(e);
-		}
-	}
-
-	// Extra functions
-
-	public void clear() {
-		clearGraph(this.graphName);
-		getEventManager().notifyEvent(this, GraphEvents.removeAll);
-	}
-
-	public void read(String url, String type) {
-		String exec_text;
-
-		exec_text = "sparql load \"" + url + "\" into graph <" + graphName
-				+ ">";
-
-		checkOpen();
-		try {
-			java.sql.Statement stmt = createStatement();
-			stmt.execute(exec_text);
-			stmt.close();
-		} catch (Exception e) {
-			throw new JenaException(e);
-		}
-	}
-
-	// --java5 or newer @SuppressWarnings("unchecked")
-	void add(Iterator<Triple> it, List<Triple> list) {
-		try {
-			PreparedStatement ps = prepareStatement(sinsert);
-			int count = 0;
-
-			while (it.hasNext()) {
-				Triple t = (Triple) it.next();
-
-				if (list != null)
-					list.add(t);
-
-				ps.setString(1, this.graphName);
-				bindSubject(ps, 2, t.getSubject());
-				bindPredicate(ps, 3, t.getPredicate());
-				bindObject(ps, 4, t.getObject());
-				ps.addBatch();
-				count++;
-
-				if (count > BATCH_SIZE) {
-					ps.executeBatch();
-					ps.clearBatch();
-					count = 0;
-				}
-			}
-
-			if (count > 0) {
-				ps.executeBatch();
-				ps.clearBatch();
-			}
-			ps.close();
-		} catch (Exception e) {
-			throw new JenaException(e);
-		}
-	}
-
-	void delete(Iterator<Triple> it, List<Triple> list) {
-		try {
-			while (it.hasNext()) {
-				Triple triple = (Triple) it.next();
-
-				if (list != null)
-					list.add(triple);
-
-				performDelete(triple);
-			}
-		} catch (Exception e) {
-			throw new JenaException(e);
-		}
-	}
-
-	void delete_match(TripleMatch tm) {
-		String S, P, O;
-		Node nS, nP, nO;
-
-		checkOpen();
-
-		S = "?s";
-		P = "?p";
-		O = "?o";
-
-		nS = tm.getMatchSubject();
-		nP = tm.getMatchPredicate();
-		nO = tm.getMatchObject();
-
-		try {
-			if (nS == null && nP == null && nO == null) {
-
-				clearGraph(this.graphName);
-
-			} else if (nS != null && nP != null && nO != null) {
-				java.sql.PreparedStatement ps;
-
-				ps = prepareStatement(sdelete);
-				ps.setString(1, this.graphName);
-				bindSubject(ps, 2, nS);
-				bindPredicate(ps, 3, nP);
-				bindObject(ps, 4, nO);
-
-				ps.execute();
-				ps.close();
-
-			} else {
-
-				if (nS != null)
-					S = Node2Str(nS);
-
-				if (nP != null)
-					P = Node2Str(nP);
-
-				if (nO != null)
-					O = Node2Str(nO);
-
-				String query = "sparql delete from graph <" + this.graphName
-						+ "> { " + S + " " + P + " " + O + " } from <"
-						+ this.graphName + "> where { " + S + " " + P + " " + O
-						+ " }";
-
-				java.sql.Statement stmt = createStatement();
-				stmt.execute(query);
-				stmt.close();
-			}
-		} catch (Exception e) {
-			throw new DeleteDeniedException(e.toString());
-		}
-	}
-
-	void clearGraph(String name) {
-		String query = "sparql clear graph iri(??)";
-
-		checkOpen();
-
-		try {
-			java.sql.PreparedStatement ps = prepareStatement(query);
-			ps.setString(1, name);
-			ps.execute();
-			ps.close();
-		} catch (Exception e) {
-			throw new JenaException(e);
-		}
-	}
-
-	public ExtendedIterator reifierTriples(TripleMatch m) {
-		return NiceIterator.emptyIterator();
-	}
-
-	public int reifierSize() {
-		return 0;
-	}
-
-	// --java5 or newer @Override
-	public TransactionHandler getTransactionHandler() {
-		return new VirtTransactionHandler(this);
-	}
-
-	// --java5 or newer @Override
-	public BulkUpdateHandler getBulkUpdateHandler() {
+
+    static public final String DEFAULT = "virt:DEFAULT";
+    static final String sinsert = "sparql insert into graph iri(??) { `iri(??)` `iri(??)` `bif:__rdf_long_from_batch_params(??,??,??)` }";
+    static final String sdelete = "sparql delete from graph iri(??) {`iri(??)` `iri(??)` `bif:__rdf_long_from_batch_params(??,??,??)`}";
+    static final int BATCH_SIZE = 5000;
+    static final String utf8 = "charset=utf-8";
+    static final String charset = "UTF-8";
+    private static final org.slf4j.Logger logger =
+            org.slf4j.LoggerFactory.getLogger(VirtGraph.class);
+
+    static {
+        VirtuosoQueryEngine.register();
+    }
+
+    protected String graphName;
+    protected boolean readFromAllGraphs = false;
+    protected String url_hostlist;
+    protected String user;
+    protected String password;
+    protected boolean roundrobin = false;
+    protected int prefetchSize = 200;
+    protected Connection connection = null;
+    protected String ruleSet = null;
+    protected boolean useSameAs = false;
+    protected int queryTimeout = 0;
+    protected VirtPrefixMapping m_prefixMapping = null;
+    private VirtuosoConnectionPoolDataSource pds = new VirtuosoConnectionPoolDataSource();
+    private VirtuosoDataSource ds;
+    private boolean isDSconnection = false;
+
+    public VirtGraph() {
+        this(null, "jdbc:virtuoso://localhost:1111/charset=UTF-8", null, null,
+                false);
+    }
+
+    public VirtGraph(String graphName) {
+        this(graphName, "jdbc:virtuoso://localhost:1111/charset=UTF-8", null,
+                null, false);
+    }
+
+    public VirtGraph(String graphName, String _url_hostlist, String user,
+                     String password) {
+        this(graphName, _url_hostlist, user, password, false);
+    }
+
+    public VirtGraph(String url_hostlist, String user, String password) {
+        this(null, url_hostlist, user, password, false);
+    }
+
+    public VirtGraph(String _graphName, VirtuosoDataSource _ds) {
+        super();
+
+        this.url_hostlist = _ds.getServerName();
+        this.graphName = _graphName;
+        this.user = _ds.getUser();
+        this.password = _ds.getPassword();
+
+        if (this.graphName == null)
+            this.graphName = DEFAULT;
+
+        try {
+            connection = _ds.getConnection();
+            isDSconnection = true;
+            ds = _ds;
+            // don't drop is it needed for initialize internal Jena classes
+            ModelCom m = new ModelCom(this);
+
+            TypeMapper tm = TypeMapper.getInstance();
+        } catch (Exception e) {
+            throw new JenaException(e);
+        }
+    }
+
+    public VirtGraph(VirtuosoDataSource _ds) {
+        this(null, _ds);
+    }
+
+    public VirtGraph(String graphName, String _url_hostlist, String user,
+                     String password, boolean _roundrobin) {
+        super();
+
+        this.url_hostlist = _url_hostlist.trim();
+        this.roundrobin = _roundrobin;
+        this.graphName = graphName;
+        this.user = user;
+        this.password = password;
+
+        if (this.graphName == null)
+            this.graphName = DEFAULT;
+
+        try {
+            if (url_hostlist.startsWith("jdbc:virtuoso://")) {
+
+                String url = url_hostlist;
+                if (!url.toLowerCase().contains(utf8)) {
+                    if (url.charAt(url.length() - 1) != '/')
+                        url = url + "/charset=UTF-8";
+                    else
+                        url = url + "charset=UTF-8";
+                }
+                if (roundrobin
+                        && !url.toLowerCase().contains("roundrobin=")) {
+                    if (url.charAt(url.length() - 1) != '/')
+                        url = url + "/roundrobin=1";
+                    else
+                        url = url + "roundrobin=1";
+                }
+                Class.forName("virtuoso.jdbc4.Driver");
+                connection = DriverManager.getConnection(url, user, password);
+            } else {
+                pds.setServerName(url_hostlist);
+                pds.setUser(user);
+                pds.setPassword(password);
+                pds.setCharset(charset);
+                pds.setRoundrobin(roundrobin);
+                javax.sql.PooledConnection pconn = pds.getPooledConnection();
+                connection = pconn.getConnection();
+                isDSconnection = true;
+            }
+
+            ModelCom m = new ModelCom(this); // don't drop is it needed for
+            // initialize internal Jena
+            // classes
+            TypeMapper tm = TypeMapper.getInstance();
+        } catch (ClassNotFoundException | SQLException e) {
+            throw new JenaException(e);
+        }
+
+    }
+
+
+
+
+
+    // getters
+    public VirtuosoDataSource getDataSource() {
+        if (isDSconnection)
+            return (ds != null ? ds : pds);
+        else
+            return null;
+    }
+
+    public String getGraphName() {
+        return this.graphName;
+    }
+
+    public String getGraphUrl() {
+        return this.url_hostlist;
+    }
+
+    public String getGraphUser() {
+        return this.user;
+    }
+
+    public String getGraphPassword() {
+        return this.password;
+    }
+
+    public Connection getConnection() {
+        return this.connection;
+    }
+
+    public int getFetchSize() {
+        return this.prefetchSize;
+    }
+
+    public void setFetchSize(int sz) {
+        this.prefetchSize = sz;
+    }
+
+    public int getQueryTimeout() {
+        return this.queryTimeout;
+    }
+
+    public void setQueryTimeout(int seconds) {
+        this.queryTimeout = seconds;
+    }
+
+    public int getCount() {
+        return size();
+    }
+
+    public void remove(List<Triple> triples) {
+        delete(triples.iterator(), null);
+    }
+
+    public void remove(Triple t) {
+        delete(t);
+    }
+
+    public boolean getReadFromAllGraphs() {
+        return readFromAllGraphs;
+    }
+
+    public void setReadFromAllGraphs(boolean val) {
+        readFromAllGraphs = val;
+    }
+
+    public String getRuleSet() {
+        return ruleSet;
+    }
+
+    public void setRuleSet(String _ruleSet) {
+        ruleSet = _ruleSet;
+    }
+
+    public boolean getSameAs() {
+        return useSameAs;
+    }
+
+    public void setSameAs(boolean _sameAs) {
+        useSameAs = _sameAs;
+    }
+
+    public void createRuleSet(String ruleSetName, String uriGraphRuleSet) {
+        checkOpen();
+
+        try {
+            try (java.sql.Statement st = createStatement()) {
+                st.execute("rdfs_rule_set('" + ruleSetName + "', '"
+                        + uriGraphRuleSet + "')");
+            }
+        } catch (Exception e) {
+            throw new JenaException(e);
+        }
+    }
+
+    public void removeRuleSet(String ruleSetName, String uriGraphRuleSet) {
+        checkOpen();
+
+        try {
+            try (java.sql.Statement st = createStatement()) {
+                st.execute("rdfs_rule_set('" + ruleSetName + "', '"
+                        + uriGraphRuleSet + "', 1)");
+            }
+        } catch (Exception e) {
+            throw new JenaException(e);
+        }
+    }
+
+    protected java.sql.Statement createStatement() throws java.sql.SQLException {
+        checkOpen();
+        java.sql.Statement st = connection.createStatement();
+        if (queryTimeout > 0)
+            st.setQueryTimeout(queryTimeout);
+        st.setFetchSize(prefetchSize);
+        return st;
+    }
+
+    protected java.sql.PreparedStatement createPreparedStatement(String sql)
+            throws java.sql.SQLException {
+        checkOpen();
+        java.sql.PreparedStatement st = connection.prepareStatement(sql);
+        if (queryTimeout > 0)
+            st.setQueryTimeout(queryTimeout);
+        st.setFetchSize(prefetchSize);
+        return st;
+    }
+
+    protected void executePrepareStatementOnGraph(
+            java.sql.PreparedStatement ps, String graphName, Triple t) throws SQLException {
+        ps.setString(1, graphName);
+        bindSubject(ps, 2, t.getSubject());
+        bindPredicate(ps, 3, t.getPredicate());
+        bindObject(ps, 4, t.getObject());
+        ps.execute();
+        ps.close();
+    }
+
+    void bindSubject(PreparedStatement ps, int col, Node n) throws SQLException {
+        if (n == null) return;
+        if (n.isURI()) ps.setString(col, n.toString());
+        else if (n.isBlank()) ps.setString(col, "_:" + n.toString());
+        else
+            throw new SQLException(
+                    "Only URI or Blank nodes can be used as subject");
+    }
+
+    void bindPredicate(PreparedStatement ps, int col, Node n)
+            throws SQLException {
+        if (n == null) return;
+        if (n.isURI()) ps.setString(col, n.toString());
+        else
+            throw new SQLException("Only URI nodes can be used as predicate");
+    }
+
+    void bindObject(PreparedStatement ps, int col, Node n) throws SQLException {
+        if (n == null)
+            return;
+        if (n.isURI()) {
+            ps.setInt(col, 1);
+            ps.setString(col + 1, n.toString());
+            ps.setNull(col + 2, java.sql.Types.VARCHAR);
+        } else if (n.isBlank()) {
+            ps.setInt(col, 1);
+            ps.setString(col + 1, "_:" + n.toString());
+            ps.setNull(col + 2, java.sql.Types.VARCHAR);
+        } else if (n.isLiteral()) {
+            String llang = n.getLiteralLanguage();
+            String ltype = n.getLiteralDatatypeURI();
+            if (llang != null && llang.length() > 0) {
+                ps.setInt(col, 5);
+                ps.setString(col + 1, n.getLiteralValue().toString());
+                ps.setString(col + 2, n.getLiteralLanguage());
+            } else if (ltype != null && ltype.length() > 0) {
+                ps.setInt(col, 4);
+                ps.setString(col + 1, n.getLiteralValue().toString());
+                ps.setString(col + 2, n.getLiteralDatatypeURI());
+            } else {
+                ps.setInt(col, 3);
+                ps.setString(col + 1, n.getLiteralValue().toString());
+                ps.setNull(col + 2, java.sql.Types.VARCHAR);
+            }
+        } else {
+            ps.setInt(col, 3);
+            ps.setString(col + 1, n.toString());
+            ps.setNull(col + 2, java.sql.Types.VARCHAR);
+        }
+    }
+
+    // --java5 or newer @Override
+    @Override
+    public void performAdd(Triple t) {
+        java.sql.PreparedStatement ps;
+        try {
+            ps = createPreparedStatement(sinsert);
+            executePrepareStatementOnGraph(ps, this.graphName, t);
+
+        } catch (Exception e) {
+            throw new AddDeniedException(e.toString());
+        }
+    }
+
+    @Override
+    public void performDelete(Triple t) {
+        java.sql.PreparedStatement ps;
+
+        try {
+            ps = createPreparedStatement(sdelete);
+            executePrepareStatementOnGraph(ps, this.graphName, t);
+        } catch (Exception e) {
+            throw new DeleteDeniedException(e.toString());
+        }
+    }
+
+    /**
+     * more efficient
+     *
+     * @return {@link Integer}
+     */
+    // --java5 or newer @Override
+    @Override
+    protected int graphBaseSize() {
+        StringBuilder sb = new StringBuilder(
+                "select count(*) from (sparql define input:storage \"\" ");
+
+        if (ruleSet != null)
+            sb.append(" define input:inference '").append(ruleSet).append("'\n ");
+
+        if (useSameAs)
+            sb.append(" define input:same-as \"yes\"\n ");
+
+        if (readFromAllGraphs)
+            sb.append(" select * where {?s ?p ?o })f");
+        else
+            sb.append(" select * where { graph `iri(??)` { ?s ?p ?o }})f");
+
+        ResultSet rs;
+        int ret = 0;
+
+        checkOpen();
+
+        try {
+            try (java.sql.PreparedStatement ps = createPreparedStatement(sb.toString())) {
+                if (!readFromAllGraphs)
+                    ps.setString(1, graphName);
+
+                rs = ps.executeQuery();
+                if (rs.next())
+                    ret = rs.getInt(1);
+                rs.close();
+            }
+        } catch (Exception e) {
+            throw new JenaException(e);
+        }
+        return ret;
+    }
+
+    /**
+     * maybe more efficient than default impl
+     *
+     * @param t {@link Triple}
+     * @return {@link Boolean}
+     */
+    // --java5 or newer @Override
+    @Override
+    protected boolean graphBaseContains(Triple t) {
+        ResultSet rs;
+        String S, P, O;
+        StringBuilder sb = new StringBuilder("sparql define input:storage \"\" ");
+
+        checkOpen();
+
+        S = " ?s ";
+        P = " ?p ";
+        O = " ?o ";
+
+        if (!Node.ANY.equals(t.getSubject()))
+            S = VirtUtilities.toString(t.getSubject());
+
+        if (!Node.ANY.equals(t.getPredicate()))
+            P = VirtUtilities.toString(t.getPredicate());
+
+        if (!Node.ANY.equals(t.getObject()))
+            O = VirtUtilities.toString(t.getObject());
+
+        if (ruleSet != null)
+            sb.append(" define input:inference '").append(ruleSet).append("'\n ");
+
+        if (useSameAs)
+            sb.append(" define input:same-as \"yes\"\n ");
+
+        if (readFromAllGraphs)
+            sb.append(" select * where { ")
+                    .append(S).append(" ")
+                    .append(P).append(" ")
+                    .append(O)
+                    .append(" } limit 1");
+        else
+            sb.append(" select * where { graph <").append(graphName).append("> { ")
+                    .append(S).append(" ")
+                    .append(P).append(" ")
+                    .append(O)
+                    .append(" }} limit 1");
+
+        try {
+            boolean ret;
+            try (java.sql.Statement stmt = createStatement()) {
+                rs = stmt.executeQuery(sb.toString());
+                ret = rs.next();
+                rs.close();
+            }
+            return ret;
+        } catch (Exception e) {
+            throw new JenaException(e);
+        }
+    }
+
+    // --java5 or newer @Override
+    @Override
+    public ExtendedIterator<Triple> graphBaseFind(Triple tm) {
+        String S, P, O;
+        StringBuilder sb = new StringBuilder("sparql ");
+
+        checkOpen();
+
+        S = " ?s ";
+        P = " ?p ";
+        O = " ?o ";
+
+        if (tm.getMatchSubject() != null)
+            S = VirtUtilities.toString(tm.getMatchSubject());
+
+        if (tm.getMatchPredicate() != null)
+            P = VirtUtilities.toString(tm.getMatchPredicate());
+
+        if (tm.getMatchObject() != null)
+            O = VirtUtilities.toString(tm.getMatchObject());
+
+        if (ruleSet != null)
+            sb.append(" define input:inference '").append(ruleSet).append("'\n ");
+
+        if (useSameAs)
+            sb.append(" define input:same-as \"yes\"\n ");
+
+        if (readFromAllGraphs)
+            sb.append(" select * where { ")
+                    .append(S).append(" ")
+                    .append(P).append(" ")
+                    .append(O)
+                    .append(" }");
+        else
+            sb.append(" select * from <").append(graphName).append("> where { ")
+                    .append(S).append(" ")
+                    .append(P).append(" ")
+                    .append(O)
+                    .append(" }");
+
+        try {
+            java.sql.PreparedStatement stmt;
+            stmt = createPreparedStatement(sb.toString());
+            return new VirtResSetIter(this, stmt.executeQuery(), tm, stmt);
+        } catch (Exception e) {
+            throw new JenaException(e);
+        }
+    }
+
+    // Extra functions
+
+    // --java5 or newer @Override
+    @Override
+    public void close() {
+        try {
+            super.close(); // will set closed = true
+            connection.close();
+        } catch (Exception e) {
+            throw new JenaException(e);
+        }
+    }
+
+    @Override
+    public void clear() {
+        clearGraph(this.graphName);
+        getEventManager().notifyEvent(this, GraphEvents.removeAll);
+    }
+
+    public void read(String url, String type) {
+        String exec_text;
+
+        exec_text = "sparql load \"" + url + "\" into graph <" + graphName + ">";
+
+        checkOpen();
+        try {
+            try (java.sql.Statement stmt = createStatement()) {
+                stmt.execute(exec_text);
+            }
+        } catch (Exception e) {
+            throw new JenaException(e);
+        }
+    }
+
+    // --java5 or newer @SuppressWarnings("unchecked")
+    void add(Iterator<Triple> it, List<Triple> list) {
+        try {
+            try (PreparedStatement ps = createPreparedStatement(sinsert)) {
+                int count = 0;
+
+                while (it.hasNext()) {
+                    Triple t = it.next();
+
+                    if (list != null)
+                        list.add(t);
+
+                    ps.setString(1, this.graphName);
+                    bindSubject(ps, 2, t.getSubject());
+                    bindPredicate(ps, 3, t.getPredicate());
+                    bindObject(ps, 4, t.getObject());
+                    ps.addBatch();
+                    count++;
+
+                    if (count > BATCH_SIZE) {
+                        ps.executeBatch();
+                        ps.clearBatch();
+                        count = 0;
+                    }
+                }
+
+                if (count > 0) {
+                    ps.executeBatch();
+                    ps.clearBatch();
+                }
+            }
+        } catch (Exception e) {
+            throw new JenaException(e);
+        }
+    }
+
+    void delete(Iterator<Triple> it, List<Triple> list) {
+        try {
+            while (it.hasNext()) {
+                Triple triple = it.next();
+
+                if (list != null)
+                    list.add(triple);
+
+                performDelete(triple);
+            }
+        } catch (Exception e) {
+            throw new JenaException(e);
+        }
+    }
+
+    void delete_match(Triple tm) {
+        String S, P, O;
+        Node nS, nP, nO;
+
+        checkOpen();
+
+        S = "?s";
+        P = "?p";
+        O = "?o";
+
+        nS = tm.getMatchSubject();
+        nP = tm.getMatchPredicate();
+        nO = tm.getMatchObject();
+
+        try {
+            if (nS == null && nP == null && nO == null) {
+
+                clearGraph(this.graphName);
+
+            } else if (nS != null && nP != null && nO != null) {
+                java.sql.PreparedStatement ps;
+
+                ps = createPreparedStatement(sdelete);
+                ps.setString(1, this.graphName);
+                bindSubject(ps, 2, nS);
+                bindPredicate(ps, 3, nP);
+                bindObject(ps, 4, nO);
+
+                ps.execute();
+                ps.close();
+
+            } else {
+
+                if (nS != null)
+                    S = VirtUtilities.toString(nS);
+
+                if (nP != null)
+                    P = VirtUtilities.toString(nP);
+
+                if (nO != null)
+                    O = VirtUtilities.toString(nO);
+
+                String query = "sparql delete from graph <" + this.graphName
+                        + "> { " + S + " " + P + " " + O + " } from <"
+                        + this.graphName + "> where { " + S + " " + P + " " + O
+                        + " }";
+
+                try (java.sql.Statement stmt = createStatement()) {
+                    stmt.execute(query);
+                }
+            }
+        } catch (Exception e) {
+            throw new DeleteDeniedException(e.toString());
+        }
+    }
+
+    void clearGraph(String name) {
+        String query = "sparql clear graph iri(??)";
+        checkOpen();
+        try {
+            try (java.sql.PreparedStatement ps = createPreparedStatement(query)) {
+                ps.setString(1, name);
+                ps.execute();
+            }
+        } catch (Exception e) {
+            throw new JenaException(e);
+        }
+    }
+
+    public ExtendedIterator reifierTriples(Triple m) {
+        return NiceIterator.emptyIterator();
+    }
+
+    public int reifierSize() {
+        return 0;
+    }
+
+    // --java5 or newer @Override
+    /*public BulkUpdateHandler getBulkUpdateHandler() {
 		if (bulkHandler == null)
 			bulkHandler = new VirtBulkUpdateHandler(this);
 		return bulkHandler;
-	}
+	}*/
 
-	protected VirtPrefixMapping m_prefixMapping = null;
+    // --java5 or newer @Override
+    @Override
+    public TransactionHandler getTransactionHandler() {
+        return new VirtTransactionHandler(this);
+    }
 
-	public PrefixMapping getPrefixMapping() {
-		if (m_prefixMapping == null)
-			m_prefixMapping = new VirtPrefixMapping(this);
-		return m_prefixMapping;
-	}
+    @Override
+    public PrefixMapping getPrefixMapping() {
+        if (m_prefixMapping == null)
+            m_prefixMapping = new VirtPrefixMapping(this);
+        return m_prefixMapping;
+    }
 
-	public static Node Object2Node(Object o) {
-		if (o == null)
-			return null;
+    // --java5 or newer @Override
+    public void add(Triple[] triples) {
+        addIterator(Arrays.asList(triples).iterator(), false);
+        gem.notifyAddArray(this, triples);
+    }
 
-		if (o instanceof ExtendedString) {
-			ExtendedString vs = (ExtendedString) o;
+    // --java5 or newer @Override
+    protected void add(List<Triple> triples, boolean notify) {
+        addIterator(triples.iterator(), false);
+        if (notify)
+            gem.notifyAddList(this, triples);
+    }
 
-			if (vs.getIriType() == ExtendedString.IRI
-					&& (vs.getStrType() & 0x01) == 0x01) {
-				if (vs.toString().indexOf("_:") == 0)
-					return Node.createAnon(AnonId.create(vs.toString()
-							.substring(2))); // _:
-				else
-					return Node.createURI(vs.toString());
+    // --java5 or newer @Override
+    public void addIterator(Iterator<Triple> it, boolean notify) {
+        VirtGraph _graph = this;
+        List<Triple> list;
+        if (notify) list = new ArrayList<>();
+        else list = null;
 
-			} else if (vs.getIriType() == ExtendedString.BNODE) {
-				return Node.createAnon(AnonId
-						.create(vs.toString().substring(9))); // nodeID://
+        _graph = prepareGraphConnection(_graph, it, list);
 
-			} else {
-				return Node.createLiteral(vs.toString());
-			}
+        if (notify)
+            gem.notifyAddIterator(_graph, list);
+    }
 
-		} else if (o instanceof RdfBox) {
+    public VirtGraph prepareGraphConnection(VirtGraph _graph, Iterator<Triple> it, List<Triple> list) {
+        try {
+            boolean autoCommit = _graph.getConnection().getAutoCommit();
+            if (autoCommit)
+                _graph.getConnection().setAutoCommit(false);
+            _graph.add(it, list);
+            if (autoCommit) {
+                _graph.getConnection().commit();
+                _graph.getConnection().setAutoCommit(true);
+            }
+        } catch (Exception e) {
+            throw new JenaException("Couldn't create transaction:" + e);
+        }
+        return _graph;
+    }
 
-			RdfBox rb = (RdfBox) o;
-			String rb_type = rb.getType();
-			RDFDatatype dt = null;
+    public void delete(Triple[] triples) {
+        deleteIterator(Arrays.asList(triples).iterator(), false);
+        gem.notifyDeleteArray(this, triples);
+    }
 
-			if (rb_type != null)
-				dt = TypeMapper.getInstance().getSafeTypeByName(rb_type);
-			return Node.createLiteral(rb.toString(), rb.getLang(), dt);
+    protected void delete(List<Triple> triples, boolean notify) {
+        deleteIterator(triples.iterator(), false);
+        if (notify)
+            gem.notifyDeleteList(this, triples);
+    }
 
-		} else if (o instanceof java.lang.Integer) {
+    public void deleteIterator(Iterator<Triple> it, boolean notify) {
+        VirtGraph _graph = this;
+        List<Triple> list;
+        if (notify) list = new ArrayList<>();
+        else list = null;
 
-			RDFDatatype dt = null;
-			dt = TypeMapper.getInstance().getSafeTypeByName(
-					"http://www.w3.org/2001/XMLSchema#integer");
-			return Node.createLiteral(o.toString(), null, dt);
+        prepareGraphConnection(_graph, it, list);
 
-		} else if (o instanceof java.lang.Short) {
+        if (notify)
+            gem.notifyDeleteIterator(_graph, list);
+    }
 
-			RDFDatatype dt = null;
-			// dt =
-			// TypeMapper.getInstance().getSafeTypeByName("http://www.w3.org/2001/XMLSchema#short");
-			dt = TypeMapper.getInstance().getSafeTypeByName(
-					"http://www.w3.org/2001/XMLSchema#integer");
-			return Node.createLiteral(o.toString(), null, dt);
+    public void removeAll() {
+        VirtGraph _graph = this;
+        _graph.clearGraph(_graph.getGraphName());
+    }
 
-		} else if (o instanceof java.lang.Float) {
-
-			RDFDatatype dt = null;
-			dt = TypeMapper.getInstance().getSafeTypeByName(
-					"http://www.w3.org/2001/XMLSchema#float");
-			return Node.createLiteral(o.toString(), null, dt);
-
-		} else if (o instanceof java.lang.Double) {
-
-			RDFDatatype dt = null;
-			dt = TypeMapper.getInstance().getSafeTypeByName(
-					"http://www.w3.org/2001/XMLSchema#double");
-			return Node.createLiteral(o.toString(), null, dt);
-
-		} else if (o instanceof java.math.BigDecimal) {
-
-			RDFDatatype dt = null;
-			dt = TypeMapper.getInstance().getSafeTypeByName(
-					"http://www.w3.org/2001/XMLSchema#decimal");
-			return Node.createLiteral(o.toString(), null, dt);
-
-		} else if (o instanceof java.sql.Blob) {
-
-			RDFDatatype dt = null;
-			dt = TypeMapper.getInstance().getSafeTypeByName(
-					"http://www.w3.org/2001/XMLSchema#hexBinary");
-			return Node.createLiteral(o.toString(), null, dt);
-
-		} else if (o instanceof java.sql.Date) {
-
-			RDFDatatype dt = null;
-			dt = TypeMapper.getInstance().getSafeTypeByName(
-					"http://www.w3.org/2001/XMLSchema#date");
-			return Node.createLiteral(o.toString(), null, dt);
-
-		} else if (o instanceof java.sql.Timestamp) {
-
-			RDFDatatype dt = null;
-			dt = TypeMapper.getInstance().getSafeTypeByName(
-					"http://www.w3.org/2001/XMLSchema#dateTime");
-			return Node.createLiteral(Timestamp2String((java.sql.Timestamp) o),
-					null, dt);
-
-		} else if (o instanceof java.sql.Time) {
-
-			RDFDatatype dt = null;
-			dt = TypeMapper.getInstance().getSafeTypeByName(
-					"http://www.w3.org/2001/XMLSchema#time");
-			return Node.createLiteral(o.toString(), null, dt);
-
-		} else {
-
-			return Node.createLiteral(o.toString());
-		}
-	}
-
-	private static String Timestamp2String(java.sql.Timestamp v) {
-		GregorianCalendar cal = new GregorianCalendar();
-		cal.setTime(v);
-
-		int year = cal.get(Calendar.YEAR);
-		int month = cal.get(Calendar.MONTH) + 1;
-		int day = cal.get(Calendar.DAY_OF_MONTH);
-		int hour = cal.get(Calendar.HOUR_OF_DAY);
-		int minute = cal.get(Calendar.MINUTE);
-		int second = cal.get(Calendar.SECOND);
-		int nanos = v.getNanos();
-
-		String yearS;
-		String monthS;
-		String dayS;
-		String hourS;
-		String minuteS;
-		String secondS;
-		String nanosS;
-		String zeros = "000000000";
-		String yearZeros = "0000";
-		StringBuffer timestampBuf;
-
-		if (year < 1000) {
-			yearS = "" + year;
-			yearS = yearZeros.substring(0, (4 - yearS.length())) + yearS;
-		} else {
-			yearS = "" + year;
-		}
-
-		if (month < 10)
-			monthS = "0" + month;
-		else
-			monthS = Integer.toString(month);
-
-		if (day < 10)
-			dayS = "0" + day;
-		else
-			dayS = Integer.toString(day);
-
-		if (hour < 10)
-			hourS = "0" + hour;
-		else
-			hourS = Integer.toString(hour);
-
-		if (minute < 10)
-			minuteS = "0" + minute;
-		else
-			minuteS = Integer.toString(minute);
-
-		if (second < 10)
-			secondS = "0" + second;
-		else
-			secondS = Integer.toString(second);
-
-		if (nanos == 0) {
-			nanosS = "0";
-		} else {
-			nanosS = Integer.toString(nanos);
-
-			// Add leading 0
-			nanosS = zeros.substring(0, (9 - nanosS.length())) + nanosS;
-
-			// Truncate trailing 0
-			char[] nanosChar = new char[nanosS.length()];
-			nanosS.getChars(0, nanosS.length(), nanosChar, 0);
-			int truncIndex = 8;
-			while (nanosChar[truncIndex] == '0') {
-				truncIndex--;
-			}
-			nanosS = new String(nanosChar, 0, truncIndex + 1);
-		}
-
-		timestampBuf = new StringBuffer();
-		timestampBuf.append(yearS);
-		timestampBuf.append("-");
-		timestampBuf.append(monthS);
-		timestampBuf.append("-");
-		timestampBuf.append(dayS);
-		timestampBuf.append("T");
-		timestampBuf.append(hourS);
-		timestampBuf.append(":");
-		timestampBuf.append(minuteS);
-		timestampBuf.append(":");
-		timestampBuf.append(secondS);
-		timestampBuf.append(".");
-		timestampBuf.append(nanosS);
-
-		return (timestampBuf.toString());
-	}
+    @Override
+    public void remove(Node s, Node p, Node o) {
+        VirtGraph _graph = this;
+        _graph.delete_match(Triple.createMatch(s, p, o));
+        gem.notifyEvent(this, GraphEvents.remove(s, p, o));
+    }
 
 }
